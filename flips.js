@@ -209,6 +209,13 @@
       line-height:1.35
     }
 
+    .flipactions{
+      display:flex;
+      gap:5px;
+      flex-wrap:wrap;
+      justify-content:flex-end
+    }
+
     .flipopen{
       border:0;
       background:#e9f7ee;
@@ -218,6 +225,12 @@
       font-weight:900;
       font-size:9px;
       white-space:nowrap
+    }
+
+    .flipcomps{
+      background:#1b2224;
+      color:#fff;
+      border:1px solid #30393c
     }
 
     .flipnotice{
@@ -247,6 +260,19 @@
       .flipstats{
         grid-template-columns:repeat(2,1fr)
       }
+
+      .flipbottom{
+        align-items:flex-start;
+        flex-direction:column
+      }
+
+      .flipactions{
+        width:100%
+      }
+
+      .flipopen{
+        flex:1
+      }
     }
   `;
 
@@ -263,14 +289,6 @@
   S.flips = S.flips || [];
   S.flipFilter = S.flipFilter || 'all';
 
-  /*
-   * PORTFOLIO PRICE BRIDGE
-   *
-   * When multiple verified quotes exist,
-   * prefer confidence first and freshness second.
-   * This allows high-confidence ebay_live marks
-   * to flow into Portfolio.
-   */
   try {
     q = function(id) {
       return (S.q || [])
@@ -281,26 +299,18 @@
         )
         .sort((a, b) => {
           const ca =
-            Number(
-              a.confidence_score || 0
-            );
+            Number(a.confidence_score || 0);
 
           const cb =
-            Number(
-              b.confidence_score || 0
-            );
+            Number(b.confidence_score || 0);
 
           if (cb !== ca) {
             return cb - ca;
           }
 
           return (
-            new Date(
-              b.last_updated_at || 0
-            ) -
-            new Date(
-              a.last_updated_at || 0
-            )
+            new Date(b.last_updated_at || 0) -
+            new Date(a.last_updated_at || 0)
           );
         })[0] || null;
     };
@@ -317,15 +327,11 @@
   }
 
   let page =
-    document.getElementById(
-      'flips'
-    );
+    document.getElementById('flips');
 
   if (!page) {
     page =
-      document.createElement(
-        'section'
-      );
+      document.createElement('section');
 
     page.id = 'flips';
     page.className = 'hidden';
@@ -338,25 +344,17 @@
       </div>
     `;
 
-   app.appendChild(page);
-}
+    app.appendChild(page);
+  }
 
-  if (
-    !document.getElementById(
-      'flipnav'
-    )
-  ) {
+  if (!document.getElementById('flipnav')) {
     const button =
-      document.createElement(
-        'button'
-      );
+      document.createElement('button');
 
     button.id = 'flipnav';
 
     button.innerHTML = `
-      <span class="navico">
-        ↗
-      </span>
+      <span class="navico">↗</span>
       Flips
     `;
 
@@ -379,26 +377,23 @@
 
     const result =
       oldView(v);
-      const flipsPage =
-  document.getElementById('flips');
 
-if (flipsPage) {
-  flipsPage.classList.toggle(
-    'hidden',
-    v !== 'flips'
-  );
-}
+    const flipsPage =
+      document.getElementById('flips');
+
+    if (flipsPage) {
+      flipsPage.classList.toggle(
+        'hidden',
+        v !== 'flips'
+      );
+    }
 
     if (v === 'flips') {
       const n =
-        document.getElementById(
-          'flipnav'
-        );
+        document.getElementById('flipnav');
 
       if (n) {
-        n.classList.add(
-          'active'
-        );
+        n.classList.add('active');
       }
 
       loadFlips();
@@ -421,10 +416,7 @@ if (flipsPage) {
         undefined,
         {
           minimumFractionDigits:
-            Math.abs(+v) < 100
-              ? 2
-              : 0,
-
+            Math.abs(+v) < 100 ? 2 : 0,
           maximumFractionDigits: 2
         }
       )
@@ -440,10 +432,8 @@ if (flipsPage) {
     }
 
     return (
-      (
-        Number(v) *
-        100
-      ).toFixed(0) + '%'
+      (Number(v) * 100).toFixed(0) +
+      '%'
     );
   };
 
@@ -461,26 +451,38 @@ if (flipsPage) {
           })[m]
       );
 
+  const compUrl = x => {
+    const query = [
+      x.year,
+      x.set_name,
+      x.player_name,
+      x.card_number
+        ? ('#' + x.card_number)
+        : null,
+      x.parallel
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    return (
+      'https://www.ebay.com/sch/i.html?_nkw=' +
+      encodeURIComponent(query) +
+      '&LH_Sold=1&LH_Complete=1'
+    );
+  };
+
   function rows() {
     const filter =
       S.flipFilter;
 
-    return (
-      S.flips || []
-    )
+    return (S.flips || [])
       .filter(x => {
         if (filter === 'buy') {
-          return (
-            x.flip_tier ===
-            'BUY NOW'
-          );
+          return x.flip_tier === 'BUY NOW';
         }
 
         if (filter === 'offer') {
-          return (
-            x.flip_tier ===
-            'BEST OFFER'
-          );
+          return x.flip_tier === 'BEST OFFER';
         }
 
         if (filter === 'new') {
@@ -488,16 +490,10 @@ if (flipsPage) {
         }
 
         if (filter === 'watch') {
-          return (
-            x.flip_tier ===
-            'WATCH'
-          );
+          return x.flip_tier === 'WATCH';
         }
 
-        return (
-          x.flip_tier !==
-          'PASS'
-        );
+        return x.flip_tier !== 'PASS';
       })
       .sort(
         (a, b) =>
@@ -508,9 +504,7 @@ if (flipsPage) {
 
   function card(x) {
     const score =
-      Math.round(
-        +x.flip_score || 0
-      );
+      Math.round(+x.flip_score || 0);
 
     const scoreClass =
       score >= 75
@@ -520,13 +514,10 @@ if (flipsPage) {
           : 'low';
 
     const tierClass =
-      x.flip_tier ===
-        'RESEARCH' ||
-      x.flip_tier ===
-        'VERIFY IMAGE'
+      x.flip_tier === 'RESEARCH' ||
+      x.flip_tier === 'VERIFY IMAGE'
         ? 'research'
-        : x.flip_tier ===
-            'PASS'
+        : x.flip_tier === 'PASS'
           ? 'pass'
           : '';
 
@@ -538,32 +529,21 @@ if (flipsPage) {
         ? `${x.freshness_label} · `
         : '';
 
-    const depth = `
-      ${x.robust_listing_count || 0}
-      exact ·
-      ${Math.round(
-        (+x.market_confidence || 0) *
-        100
-      )}% market
-    `;
+    const depth =
+      `${x.robust_listing_count || 0} exact · ` +
+      `${Math.round((+x.market_confidence || 0) * 100)}% market`;
 
     return `
       <div class="flipcard">
 
         <div class="fliptop">
-
-          <span
-            class="flipscore ${scoreClass}"
-          >
+          <span class="flipscore ${scoreClass}">
             FLIP ${score}
           </span>
 
-          <span
-            class="fliptier ${tierClass}"
-          >
+          <span class="fliptier ${tierClass}">
             ${esc(x.flip_tier)}
           </span>
-
         </div>
 
         <div class="flipname">
@@ -587,70 +567,36 @@ if (flipsPage) {
 
           <div class="flipmetric">
             <small>eBay ask</small>
-            <b>
-              ${cash(x.ask_price)}
-            </b>
+            <b>${cash(x.ask_price)}</b>
           </div>
 
           <div class="flipmetric">
             <small>Max buy</small>
-            <b>
-              ${cash(
-                x.max_buy_price
-              )}
-            </b>
+            <b>${cash(x.max_buy_price)}</b>
           </div>
 
           <div class="flipmetric">
             <small>Fair exit</small>
-            <b>
-              ${cash(
-                x.fair_exit_price
-              )}
-            </b>
+            <b>${cash(x.fair_exit_price)}</b>
           </div>
 
           <div class="flipmetric">
             <small>Net profit</small>
-
-            <b
-              class="${
-                profit >= 0
-                  ? 'flipprofit'
-                  : 'flipneg'
-              }"
-            >
-              ${
-                profit >= 0
-                  ? '+'
-                  : ''
-              }${cash(profit)}
+            <b class="${profit >= 0 ? 'flipprofit' : 'flipneg'}">
+              ${profit >= 0 ? '+' : ''}${cash(profit)}
             </b>
           </div>
 
           <div class="flipmetric">
             <small>Net ROI</small>
-
-            <b
-              class="${
-                profit >= 0
-                  ? 'flipprofit'
-                  : 'flipneg'
-              }"
-            >
-              ${pct(
-                x.expected_roi
-              )}
+            <b class="${profit >= 0 ? 'flipprofit' : 'flipneg'}">
+              ${pct(x.expected_roi)}
             </b>
           </div>
 
           <div class="flipmetric">
             <small>All-in buy</small>
-            <b>
-              ${cash(
-                x.all_in_buy_cost
-              )}
-            </b>
+            <b>${cash(x.all_in_buy_cost)}</b>
           </div>
 
         </div>
@@ -661,20 +607,29 @@ if (flipsPage) {
             ${freshness}${depth}
           </span>
 
-          ${
-            x.item_url
-              ? `
-                <button
-                  class="flipopen"
-                  data-url="${esc(
-                    x.item_url
-                  )}"
-                >
-                  View eBay
-                </button>
-              `
-              : ''
-          }
+          <div class="flipactions">
+
+            <button
+              class="flipopen flipcomps"
+              data-url="${esc(compUrl(x))}"
+            >
+              Recent Comps
+            </button>
+
+            ${
+              x.item_url
+                ? `
+                  <button
+                    class="flipopen"
+                    data-url="${esc(x.item_url)}"
+                  >
+                    View eBay
+                  </button>
+                `
+                : ''
+            }
+
+          </div>
 
         </div>
 
@@ -701,15 +656,13 @@ if (flipsPage) {
     const buys =
       all.filter(
         x =>
-          x.flip_tier ===
-          'BUY NOW'
+          x.flip_tier === 'BUY NOW'
       ).length;
 
     const offers =
       all.filter(
         x =>
-          x.flip_tier ===
-          'BEST OFFER'
+          x.flip_tier === 'BEST OFFER'
       ).length;
 
     const fresh =
@@ -722,23 +675,17 @@ if (flipsPage) {
       all.length
         ? Math.max(
             ...all.map(
-              x =>
-                +x.flip_score ||
-                0
+              x => +x.flip_score || 0
             )
           )
         : 0;
 
     el.innerHTML = `
-
       <div class="fliphero">
-
         <div>
           <h1>Flips</h1>
-
           <p>
-            Buy raw on eBay →
-            resell raw.
+            Buy raw on eBay → resell raw.
             No grading assumptions.
           </p>
         </div>
@@ -749,11 +696,9 @@ if (flipsPage) {
         >
           Refresh
         </button>
-
       </div>
 
       <div class="flipstats">
-
         <div class="flipstat">
           <small>Buy now</small>
           <b>${buys}</b>
@@ -771,23 +716,16 @@ if (flipsPage) {
 
         <div class="flipstat">
           <small>Best score</small>
-          <b>
-            ${Math.round(best)}
-          </b>
+          <b>${Math.round(best)}</b>
         </div>
-
       </div>
 
       <div class="flipfilters">
-
         ${
           [
             ['all', 'Best'],
             ['buy', 'Buy Now'],
-            [
-              'offer',
-              'Best Offer'
-            ],
+            ['offer', 'Best Offer'],
             ['new', 'New'],
             ['watch', 'Watch']
           ]
@@ -807,55 +745,37 @@ if (flipsPage) {
             )
             .join('')
         }
-
       </div>
 
       <div class="flipboard">
-
         ${
           visible.length
             ? visible
                 .map(card)
                 .join('')
             : `
-              <div
-                class="flipnotice"
-              >
-                No listing currently
-                clears this filter.
+              <div class="flipnotice">
+                No listing currently clears
+                this filter.
 
-                Flip Score includes
-                acquisition cost,
-                selling fees,
-                shipping,
-                market depth,
-                exact-match confidence
-                and conservative exit
+                Flip Score includes acquisition
+                cost, selling fees, shipping,
+                market depth, exact-match
+                confidence and conservative exit
                 pricing.
-
-                The scanner will
-                automatically surface
-                a BUY NOW when an exact
-                listing clears the
-                thresholds.
               </div>
             `
         }
-
       </div>
     `;
 
     document
-      .getElementById(
-        'fliprefresh'
-      )
+      .getElementById('fliprefresh')
       .onclick =
         loadFlips;
 
     el
-      .querySelectorAll(
-        '[data-f]'
-      )
+      .querySelectorAll('[data-f]')
       .forEach(
         b =>
           b.onclick =
@@ -868,9 +788,7 @@ if (flipsPage) {
       );
 
     el
-      .querySelectorAll(
-        '.flipopen'
-      )
+      .querySelectorAll('.flipopen')
       .forEach(
         b =>
           b.onclick =
@@ -882,6 +800,7 @@ if (flipsPage) {
               )
       );
   }
+
   async function loadFlips() {
     try {
       S.flips =
@@ -914,6 +833,4 @@ if (flipsPage) {
 
   window.loadFlips =
     loadFlips;
-
 })();
-
