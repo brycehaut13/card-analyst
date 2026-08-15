@@ -63,19 +63,58 @@ function norm(s = '') {
 }
 
 function hasWord(hay, word) {
-  const h = ` ${norm(hay)} `;
-  const w = ` ${norm(word)} `;
-
-  return h.includes(w);
+  return ` ${norm(hay)} `.includes(
+    ` ${norm(word)} `
+  );
 }
 
 function money(x) {
-  if (!x) return null;
+  return x
+    ? {
+        value: Number(x.value),
+        currency: x.currency
+      }
+    : null;
+}
 
-  return {
-    value: Number(x.value),
-    currency: x.currency
-  };
+function containsNormalizedPhrase(hay, phrase) {
+  const h = ` ${norm(hay)} `;
+  const p = ` ${norm(phrase)} `;
+
+  return p.trim() && h.includes(p);
+}
+
+function hasSerial(title, serialTo) {
+  if (!serialTo) return false;
+
+  const escaped =
+    String(serialTo).replace(
+      /[.*+?^${}()|[\]\\]/g,
+      '\\$&'
+    );
+
+  return new RegExp(
+    `/\\s*${escaped}(?:\\D|$)`,
+    'i'
+  ).test(String(title || ''));
+}
+
+function extractSerials(title) {
+  return [
+    ...String(title || '').matchAll(
+      /\/\s*(\d{1,5})(?=\D|$)/g
+    )
+  ].map(m => Number(m[1]));
+}
+
+function looksLikeLot(title) {
+  const t = norm(title);
+
+  return (
+    /(^| )(lot|bundle|set of)( |$)/.test(t) ||
+    /(^| )x ?[2-9][0-9]*( |$)/.test(t) ||
+    /(^| )[2-9][0-9]*x( |$)/.test(t)
+  );
 }
 
 const PARALLEL_CONFLICTS = [
@@ -116,50 +155,84 @@ const PARALLEL_CONFLICTS = [
   'glitter',
   'silver glitter',
   'ssp',
-  'super short print'
+  'super short print',
+  'mini diamond',
+  'mini-diamond',
+  'superfractor',
+  'super fractor',
+  'aqua',
+  'teal'
 ];
 
+const SET_STOPWORDS = new Set([
+  'topps',
+  'panini',
+  'baseball',
+  'basketball',
+  'football',
+  'card',
+  'cards',
+  'trading',
+  'autograph',
+  'autographs'
+]);
+
 function scoreExactMatch(item, target) {
-  const title = norm(item.title || '');
+  const rawTitle =
+    String(item.title || '');
+
+  const title =
+    norm(rawTitle);
+
+  const targetSet =
+    norm(target.set || '');
+
+  const wanted =
+    norm(target.parallel || '');
+
   const reasons = [];
 
   let score = 1.0;
 
-  const playerTokens = norm(target.player || '')
-    .split(' ')
-    .filter(Boolean);
+  const playerTokens =
+    norm(target.player || '')
+      .split(' ')
+      .filter(Boolean);
 
   if (
     playerTokens.some(
       token => !hasWord(title, token)
     )
   ) {
-    reasons.push('player_mismatch');
-
     return {
       score: 0,
       status: 'rejected',
-      reasons
+      reasons: ['player_mismatch']
+    };
+  }
+
+  if (looksLikeLot(rawTitle)) {
+    return {
+      score: 0.1,
+      status: 'rejected',
+      reasons: ['multi_card_or_lot']
     };
   }
 
   if (target.cardNumber) {
-    const number = String(
-      target.cardNumber
-    ).replace(/^#/, '');
-
-    const patterns = [
-      ` ${number} `,
-      ` #${number} `
-    ];
+    const cardPhrase =
+      norm(
+        String(target.cardNumber)
+          .replace(/^#/, '')
+      );
 
     if (
-      !patterns.some(
-        pattern =>
-          ` ${title} `.includes(pattern)
+      !containsNormalizedPhrase(
+        title,
+        cardPhrase
       )
     ) {
-      score -= 0.22;
+      score -= 0.26;
 
       reasons.push(
         'card_number_not_explicit'
@@ -167,33 +240,32 @@ function scoreExactMatch(item, target) {
     }
   }
 
-  const year = norm(target.year || '');
+  const yearTokens =
+    norm(target.year || '')
+      .split(' ')
+      .filter(Boolean);
 
   if (
-    year &&
-    !title.includes(year) &&
-    !title.includes(
-      year.replace('-', ' ')
+    yearTokens.length &&
+    yearTokens.some(
+      y => !hasWord(title, y)
     )
   ) {
-    score -= 0.12;
+    score -= 0.10;
 
     reasons.push(
       'year_not_explicit'
     );
   }
 
-  const setTokens = norm(
-    target.set || ''
-  )
-    .split(' ')
-    .filter(
-      token =>
-        token.length > 2 &&
-        !['panini', 'topps'].includes(
-          token
-        )
-    );
+  const setTokens =
+    targetSet
+      .split(' ')
+      .filter(
+        token =>
+          token.length > 2 &&
+          !SET_STOPWORDS.has(token)
+      );
 
   if (
     setTokens.length &&
@@ -202,38 +274,70 @@ function scoreExactMatch(item, target) {
         !hasWord(title, token)
     )
   ) {
-    score -= 0.12;
+    score -= 0.10;
 
     reasons.push(
       'set_not_explicit'
     );
   }
 
-  const wanted = norm(
-    target.parallel || ''
-  );
-
   if (wanted) {
     for (
       const conflict
       of PARALLEL_CONFLICTS
     ) {
-      if (
-        hasWord(title, conflict) &&
-        !wanted.includes(
-          norm(conflict)
-        )
-      ) {
-        reasons.push(
-          `wrong_parallel:${conflict}`
+      const conflictNorm =
+        norm(conflict);
+
+      const conflictIsSetWord =
+        targetSet.includes(
+          conflictNorm
         );
 
+      const conflictIsWanted =
+        wanted.includes(
+          conflictNorm
+        );
+
+      if (
+        hasWord(title, conflict) &&
+        !conflictIsWanted &&
+        !conflictIsSetWord
+      ) {
         return {
           score: 0.25,
           status: 'rejected',
-          reasons
+          reasons: [
+            `wrong_parallel:${conflict}`
+          ]
         };
       }
+    }
+
+    const wantedTokens =
+      wanted
+        .split(' ')
+        .filter(
+          token =>
+            token.length > 2 &&
+            ![
+              'prizm',
+              'refractor'
+            ].includes(token)
+        );
+
+    if (
+      wantedTokens.length &&
+      wantedTokens.some(
+        token =>
+          !hasWord(title, token)
+      )
+    ) {
+      score -= 0.18;
+
+      reasons.push(
+        'parallel_not_explicit'
+      );
     }
 
     if (
@@ -248,6 +352,55 @@ function scoreExactMatch(item, target) {
     }
   }
 
+  if (target.serialTo) {
+    const serials =
+      extractSerials(rawTitle);
+
+    if (
+      serials.length &&
+      !serials.includes(
+        Number(target.serialTo)
+      )
+    ) {
+      return {
+        score: 0.15,
+        status: 'rejected',
+        reasons: [
+          `wrong_serial:/${serials.join(',/')}`
+        ]
+      };
+    }
+
+    if (
+      !hasSerial(
+        rawTitle,
+        target.serialTo
+      )
+    ) {
+      score -= 0.22;
+
+      reasons.push(
+        'serial_not_explicit'
+      );
+    }
+  }
+
+  if (target.isAutograph) {
+    const autoExplicit =
+      /(^| )(auto|autograph|autographs)( |$)/
+        .test(title);
+
+    if (!autoExplicit) {
+      return {
+        score: 0.45,
+        status: 'rejected',
+        reasons: [
+          'autograph_not_explicit'
+        ]
+      };
+    }
+  }
+
   const gradedWords = [
     'psa',
     'bgs',
@@ -255,15 +408,16 @@ function scoreExactMatch(item, target) {
     'cgc',
     'graded',
     'gem mint',
-    'mint 10',
-    'psa 10',
-    'psa 9'
+    'mint 10'
   ];
 
   const titleLooksGraded =
     gradedWords.some(
       word =>
-        title.includes(norm(word))
+        containsNormalizedPhrase(
+          title,
+          word
+        )
     );
 
   const itemLooksGraded =
@@ -278,12 +432,13 @@ function scoreExactMatch(item, target) {
     target.rawOnly &&
     itemLooksGraded
   ) {
-    reasons.push('graded_copy');
-
     return {
       score: 0.2,
       status: 'rejected',
-      reasons
+      reasons: [
+        ...reasons,
+        'graded_copy'
+      ]
     };
   }
 
@@ -298,9 +453,30 @@ function scoreExactMatch(item, target) {
 
   if (
     wanted &&
-    title.includes(wanted)
+    containsNormalizedPhrase(
+      title,
+      wanted
+    )
   ) {
     score += 0.03;
+  }
+
+  if (
+    target.serialTo &&
+    hasSerial(
+      rawTitle,
+      target.serialTo
+    )
+  ) {
+    score += 0.03;
+  }
+
+  if (
+    target.isAutograph &&
+    /(^| )(auto|autograph|autographs)( |$)/
+      .test(title)
+  ) {
+    score += 0.02;
   }
 
   score = Math.max(
@@ -360,6 +536,19 @@ async function handler(req, res) {
         req.query.parallel || ''
       ).trim();
 
+    const serialTo =
+      req.query.serial_to
+        ? Number(
+            req.query.serial_to
+          )
+        : null;
+
+    const isAutograph =
+      String(
+        req.query.is_autograph ??
+        'false'
+      ) === 'true';
+
     const rawOnly =
       String(
         req.query.raw_only ??
@@ -375,15 +564,38 @@ async function handler(req, res) {
         });
     }
 
+    if (
+      req.query.serial_to &&
+      (
+        !Number.isFinite(
+          serialTo
+        ) ||
+        serialTo <= 0
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'serial_to must be a positive number'
+        });
+    }
+
     const searchQuery = [
       year,
       set,
       player,
 
       cardNumber &&
-        '#' + cardNumber,
+        `#${cardNumber}`,
 
-      parallel
+      parallel,
+
+      serialTo &&
+        `/${serialTo}`,
+
+      isAutograph &&
+        'Auto'
     ]
       .filter(Boolean)
       .join(' ');
@@ -435,6 +647,8 @@ async function handler(req, res) {
       set,
       cardNumber,
       parallel,
+      serialTo,
+      isAutograph,
       rawOnly
     };
 
@@ -562,7 +776,8 @@ async function handler(req, res) {
           Number.isFinite
         )
         .sort(
-          (a, b) => a - b
+          (a, b) =>
+            a - b
         );
 
     const medianOf =
@@ -571,28 +786,28 @@ async function handler(req, res) {
           return null;
         }
 
-        if (
-          array.length % 2
-        ) {
-          return array[
-            (array.length - 1) /
-            2
-          ];
-        }
-
         return (
-          array[
-            array.length / 2 -
-            1
-          ] +
-          array[
-            array.length / 2
-          ]
-        ) / 2;
+          array.length % 2
+            ? array[
+                (
+                  array.length -
+                  1
+                ) / 2
+              ]
+            : (
+                array[
+                  array.length /
+                  2 -
+                  1
+                ] +
+                array[
+                  array.length /
+                  2
+                ]
+              ) /
+              2
+        );
       };
-
-    const median =
-      medianOf(asks);
 
     const quantile =
       p => {
@@ -601,8 +816,10 @@ async function handler(req, res) {
         }
 
         const index =
-          (asks.length - 1) *
-          p;
+          (
+            asks.length -
+            1
+          ) * p;
 
         const lower =
           Math.floor(index);
@@ -622,35 +839,42 @@ async function handler(req, res) {
             asks[upper] -
             asks[lower]
           ) *
-          (index - lower)
+          (
+            index -
+            lower
+          )
         );
       };
 
-    const p25 =
+    const medianAsk =
+      medianOf(asks);
+
+    const p25Ask =
       quantile(0.25);
 
-    const p75 =
+    const p75Ask =
       quantile(0.75);
 
     const iqr =
-      p25 == null ||
-      p75 == null
+      p25Ask == null ||
+      p75Ask == null
         ? null
-        : p75 - p25;
+        : p75Ask -
+          p25Ask;
 
     const lowerFence =
       iqr == null
         ? null
         : Math.max(
             0,
-            p25 -
+            p25Ask -
             1.5 * iqr
           );
 
     const upperFence =
       iqr == null
         ? null
-        : p75 +
+        : p75Ask +
           1.5 * iqr;
 
     const robustAsks =
@@ -670,16 +894,11 @@ async function handler(req, res) {
           )
       );
 
-    const robustMedianAsk =
-      medianOf(
-        robustAsks
-      );
-
     return res
       .status(200)
       .json({
         source:
-          'ebay_browse_exact',
+          'ebay_browse_exact_v2',
 
         marketplace:
           'EBAY_US',
@@ -700,16 +919,16 @@ async function handler(req, res) {
             asks[0] ??
             null,
 
-          medianAsk:
-            median,
+          medianAsk,
 
-          robustMedianAsk,
+          robustMedianAsk:
+            medianOf(
+              robustAsks
+            ),
 
-          p25Ask:
-            p25,
+          p25Ask,
 
-          p75Ask:
-            p75,
+          p75Ask,
 
           robustListingCount:
             robustAsks.length,
