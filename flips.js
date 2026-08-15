@@ -338,11 +338,8 @@
       </div>
     `;
 
-    nav.parentNode.insertBefore(
-      page,
-      nav
-    );
-  }
+   app.appendChild(page);
+}
 
   if (
     !document.getElementById(
