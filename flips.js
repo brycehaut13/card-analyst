@@ -876,9 +876,39 @@
               )
       );
   }
-
   async function loadFlips() {
     try {
       S.flips =
         await api(
-          '/rest/v1/golden_goose_fl
+          '/rest/v1/golden_goose_flips_feed?select=*&order=flip_score.desc&limit=200'
+        );
+
+      draw();
+
+    } catch (e) {
+      const el =
+        document.getElementById(
+          'flipcontent'
+        );
+
+      if (el) {
+        el.innerHTML = `
+          <div class="empty">
+            Could not load Flips right now.
+          </div>
+        `;
+      }
+
+      console.error(
+        'Flips load failed',
+        e
+      );
+    }
+  }
+
+  window.loadFlips =
+    loadFlips;
+
+  loadFlips();
+})();
+
