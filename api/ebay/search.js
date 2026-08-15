@@ -51,6 +51,22 @@ async function getEbayToken() {
   return cachedToken;
 }
 
+function norm(s = '') {
+  return String(s)
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function hasWord(hay, word) {
+  const h = ` ${norm(hay)} `;
+  const w = ` ${norm(word)} `;
+
+  return h.includes(w);
+}
+
 function money(x) {
   if (!x) return null;
 
@@ -60,168 +76,409 @@ function money(x) {
   };
 }
 
+const PARALLEL_CONFLICTS = [
+  'hyper',
+  'wave',
+  'china',
+  'ice',
+  'cracked ice',
+  'pink ice',
+  'red ice',
+  'green ice',
+  'blue ice',
+  'pulsar',
+  'checkerboard',
+  'choice',
+  'fast break',
+  'disco',
+  'scope',
+  'mojo',
+  'shimmer',
+  'sparkle',
+  'orange',
+  'gold',
+  'black',
+  'purple',
+  'pink',
+  'red',
+  'blue',
+  'green',
+  'white',
+  'neon',
+  'ruby',
+  'tiger',
+  'elephant',
+  'snakeskin',
+  'prizm break',
+  'variation'
+];
+
+function scoreExactMatch(item, target) {
+  const title = norm(item.title || '');
+  const reasons = [];
+
+  let score = 1.0;
+
+  const playerTokens = norm(target.player || '')
+    .split(' ')
+    .filter(Boolean);
+
+  if (playerTokens.some(t => !hasWord(title, t))) {
+    reasons.push('player_mismatch');
+
+    return {
+      score: 0,
+      status: 'rejected',
+      reasons
+    };
+  }
+
+  if (target.cardNumber) {
+    const n = String(target.cardNumber).replace(/^#/, '');
+
+    const patterns = [
+      ` ${n} `,
+      ` #${n} `
+    ];
+
+    if (!patterns.some(p => ` ${title} `.includes(p))) {
+      score -= 0.22;
+      reasons.push('card_number_not_explicit');
+    }
+  }
+
+  const yr = norm(target.year || '');
+
+  if (
+    yr &&
+    !title.includes(yr) &&
+    !title.includes(yr.replace('-', ' '))
+  ) {
+    score -= 0.12;
+    reasons.push('year_not_explicit');
+  }
+
+  const setTokens = norm(target.set || '')
+    .split(' ')
+    .filter(
+      t =>
+        t.length > 2 &&
+        !['panini', 'topps'].includes(t)
+    );
+
+  if (
+    setTokens.length &&
+    setTokens.some(t => !hasWord(title, t))
+  ) {
+    score -= 0.12;
+    reasons.push('set_not_explicit');
+  }
+
+  const wanted = norm(target.parallel || '');
+
+  if (wanted) {
+    for (const conflict of PARALLEL_CONFLICTS) {
+      if (
+        hasWord(title, conflict) &&
+        !wanted.includes(norm(conflict))
+      ) {
+        reasons.push(`wrong_parallel:${conflict}`);
+
+        return {
+          score: 0.25,
+          status: 'rejected',
+          reasons
+        };
+      }
+    }
+
+    if (
+      wanted.includes('silver') &&
+      !hasWord(title, 'silver')
+    ) {
+      score -= 0.28;
+      reasons.push('silver_not_explicit');
+    }
+  }
+
+  const gradedWords = [
+    'psa',
+    'bgs',
+    'sgc',
+    'cgc',
+    'graded',
+    'gem mint',
+    'mint 10',
+    'psa 10',
+    'psa 9'
+  ];
+
+  const titleLooksGraded =
+    gradedWords.some(x =>
+      title.includes(norm(x))
+    );
+
+  const itemLooksGraded =
+    /^graded$/i.test(
+      String(item.condition || '').trim()
+    ) ||
+    titleLooksGraded;
+
+  if (target.rawOnly && itemLooksGraded) {
+    reasons.push('graded_copy');
+
+    return {
+      score: 0.2,
+      status: 'rejected',
+      reasons
+    };
+  }
+
+  if (
+    target.rawOnly &&
+    norm(item.condition || '').includes('ungraded')
+  ) {
+    score += 0.03;
+  }
+
+  if (
+    wanted &&
+    title.includes(wanted)
+  ) {
+    score += 0.03;
+  }
+
+  score = Math.max(
+    0,
+    Math.min(1, score)
+  );
+
+  return {
+    score,
+    status:
+      score >= 0.90
+        ? 'accepted'
+        : score >= 0.75
+          ? 'review'
+          : 'rejected',
+    reasons
+  };
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
-    res.setHeader('Allow', 'GET');
     return res.status(405).json({
       error: 'Method not allowed'
     });
   }
 
   try {
-    const q = String(req.query.q || '').trim();
+    const player =
+      String(req.query.player || '').trim();
 
-    if (!q) {
+    const year =
+      String(req.query.year || '').trim();
+
+    const set =
+      String(req.query.set || '').trim();
+
+    const cardNumber =
+      String(req.query.card_number || '').trim();
+
+    const parallel =
+      String(req.query.parallel || '').trim();
+
+    const rawOnly =
+      String(req.query.raw_only ?? 'true') !== 'false';
+
+    if (!player) {
       return res.status(400).json({
-        error: 'Missing q search parameter'
+        error: 'Missing player'
       });
     }
 
-    const requestedLimit =
-      Number(req.query.limit) || 25;
-
-    const limit = Math.min(
-      Math.max(requestedLimit, 1),
-      50
-    );
+    const q = [
+      year,
+      set,
+      player,
+      cardNumber && '#' + cardNumber,
+      parallel
+    ]
+      .filter(Boolean)
+      .join(' ');
 
     const token = await getEbayToken();
 
     const params = new URLSearchParams({
       q,
-      limit: String(limit)
+      limit: '50'
     });
 
-    const url =
+    const ebayResponse = await fetch(
       'https://api.ebay.com/buy/browse/v1/item_summary/search?' +
-      params.toString();
-
-    const ebayResponse = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+      params.toString(),
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+        }
       }
-    });
+    );
 
     const data = await ebayResponse.json();
 
     if (!ebayResponse.ok) {
-      return res.status(ebayResponse.status).json({
-        error: 'eBay Browse request failed',
-        details: data
-      });
+      return res
+        .status(ebayResponse.status)
+        .json({
+          error: 'eBay Browse request failed',
+          details: data
+        });
     }
 
-    const items = (data.itemSummaries || []).map(item => {
-      const shipping =
-        item.shippingOptions?.[0]?.shippingCost || null;
+    const target = {
+      player,
+      year,
+      set,
+      cardNumber,
+      parallel,
+      rawOnly
+    };
 
-      const price = money(item.price);
-      const ship = money(shipping);
+    const evaluated =
+      (data.itemSummaries || []).map(item => {
+        const shipping =
+          item.shippingOptions?.[0]?.shippingCost ||
+          null;
 
-      const totalAsk =
-        price &&
-        ship &&
-        price.currency === ship.currency
-          ? price.value + ship.value
-          : price?.value ?? null;
+        const price = money(item.price);
+        const ship = money(shipping);
 
-      return {
-        itemId: item.itemId,
-        legacyItemId: item.legacyItemId || null,
+        const totalAsk =
+          price &&
+          ship &&
+          price.currency === ship.currency
+            ? price.value + ship.value
+            : price?.value ?? null;
 
-        title: item.title || null,
+        const match =
+          scoreExactMatch(item, target);
 
-        price,
-        shipping: ship,
-        totalAsk,
+        return {
+          itemId: item.itemId,
+          legacyItemId:
+            item.legacyItemId || null,
 
-        buyingOptions:
-          item.buyingOptions || [],
+          title:
+            item.title || null,
 
-        bidCount:
-          item.bidCount ?? null,
+          price,
+          shipping: ship,
+          totalAsk,
 
-        currentBidPrice:
-          money(item.currentBidPrice),
+          buyingOptions:
+            item.buyingOptions || [],
 
-        condition:
-          item.condition || null,
+          bidCount:
+            item.bidCount ?? null,
 
-        conditionId:
-          item.conditionId || null,
+          currentBidPrice:
+            money(item.currentBidPrice),
 
-        itemCreationDate:
-          item.itemCreationDate || null,
+          condition:
+            item.condition || null,
 
-        itemEndDate:
-          item.itemEndDate || null,
+          itemCreationDate:
+            item.itemCreationDate || null,
 
-        image:
-          item.image?.imageUrl || null,
+          itemEndDate:
+            item.itemEndDate || null,
 
-        itemWebUrl:
-          item.itemWebUrl || null,
+          image:
+            item.image?.imageUrl || null,
 
-        seller:
-          item.seller
-            ? {
-                username:
-                  item.seller.username || null,
-                feedbackPercentage:
-                  item.seller.feedbackPercentage ?? null,
-                feedbackScore:
-                  item.seller.feedbackScore ?? null
-              }
-            : null
-      };
-    });
+          itemWebUrl:
+            item.itemWebUrl || null,
 
-    const asks = items
+          seller:
+            item.seller || null,
+
+          exactMatchConfidence:
+            match.score,
+
+          matchStatus:
+            match.status,
+
+          rejectionReasons:
+            match.reasons
+        };
+      });
+
+    const accepted =
+      evaluated.filter(
+        x =>
+          x.matchStatus === 'accepted' &&
+          x.exactMatchConfidence >= 0.90
+      );
+
+    const asks = accepted
       .map(x => x.totalAsk)
-      .filter(x => Number.isFinite(x))
+      .filter(Number.isFinite)
       .sort((a, b) => a - b);
 
-    const medianAsk =
-      asks.length === 0
-        ? null
-        : asks.length % 2
-          ? asks[Math.floor(asks.length / 2)]
+    const median =
+      asks.length
+        ? asks.length % 2
+          ? asks[(asks.length - 1) / 2]
           : (
               asks[asks.length / 2 - 1] +
               asks[asks.length / 2]
-            ) / 2;
+            ) / 2
+        : null;
 
     return res.status(200).json({
-      source: 'ebay_browse',
+      source: 'ebay_browse_exact',
       marketplace: 'EBAY_US',
       query: q,
+      target,
 
-      totalMatching:
-        data.total ?? null,
+      rawReturned:
+        evaluated.length,
 
-      returned:
-        items.length,
+      exactAccepted:
+        accepted.length,
 
       market: {
         lowestAsk:
-          asks.length ? asks[0] : null,
+          asks[0] ?? null,
 
-        medianAsk,
+        medianAsk:
+          median,
 
-        activeListings:
-          data.total ?? items.length
+        exactActiveListings:
+          accepted.length
       },
 
-      items
+      accepted,
+
+      rejected:
+        evaluated.filter(
+          x => x.matchStatus === 'rejected'
+        ),
+
+      review:
+        evaluated.filter(
+          x => x.matchStatus === 'review'
+        )
     });
+
   } catch (error) {
-    console.error('eBay search error', error);
+    console.error(error);
 
     return res.status(500).json({
       error:
         error.message ||
-        'Unexpected eBay search error'
+        'Unexpected error'
     });
   }
 };
