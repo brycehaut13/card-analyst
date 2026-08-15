@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/ebay/collect",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
