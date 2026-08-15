@@ -61,6 +61,7 @@
 <button data-range="ALL">ALL</button>
 </div>
 </div>
+<div class="coverage">Portfolio Value includes only holdings with an actual market quote. Unpriced cards are excluded until a verified price is available.</div>
 <div class="trophytitle"><div><h2>Trophy Room</h2><span id="trophycount">Your collection</span></div><div class="trophycontrols"><button id="trophyleft" class="trophyarrow" aria-label="Previous card">‹</button><button id="trophyright" class="trophyarrow" aria-label="Next card">›</button></div></div>
 <div class="trophywrap"><div id="holdings" class="trophyrail"></div></div>
 <div id="trophylist" class="trophylist"></div>
@@ -77,7 +78,7 @@
 function drawPortfolioChart(){
   let a=rangedSnaps();
   document.querySelectorAll('[data-range]').forEach(b=>b.classList.toggle('active',b.dataset.range===S.range));
-  if(!a.length){$('portchart').innerHTML='<div class="muted" style="padding:44px 0;text-align:center;font-size:12px">Portfolio history will build here automatically.</div>';$('chartmeta').textContent=S.range;return}
+  if(!a.length){$('portchart').innerHTML='<div class="muted" style="padding:44px 0;text-align:center;font-size:12px">Priced portfolio history will build here as market values become available.</div>';$('chartmeta').textContent=S.range+' · priced value only';return}
   let vals=a.map(x=>+x.total_market_value||0),w=500,h=170,p=14,min=Math.min(...vals),max=Math.max(...vals);
   if(max===min){let d=Math.max(1,max*.025);min=Math.max(0,min-d);max=max+d}
   let x=i=>p+(a.length===1?(w-2*p)/2:i*(w-2*p)/(a.length-1)),y=v=>h-p-(v-min)*(h-2*p)/(max-min),
@@ -85,15 +86,15 @@ function drawPortfolioChart(){
   area=a.length===1?`${p},${h-p} ${p},${y(vals[0])} ${w-p},${y(vals[0])} ${w-p},${h-p}`:`${p},${h-p} ${pts} ${w-p},${h-p}`,
   first=a[0],last=a[a.length-1];
   $('portchart').innerHTML=`<svg class="chart" style="height:170px" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><line class="chartgrid" x1="${p}" y1="${h-p}" x2="${w-p}" y2="${h-p}"/><polygon class="chartarea" points="${area}"/><polyline class="chartline" points="${pts}"/><text class="chartlabel" x="${p}" y="11">${M(max)}</text><text class="chartlabel" x="${p}" y="${h-2}">${new Date(first.snapshot_date+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'})}</text><text class="chartlabel" text-anchor="end" x="${w-p}" y="${h-2}">${new Date(last.snapshot_date+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'})}</text></svg>`;
-  $('chartmeta').textContent=S.range
+  $('chartmeta').textContent=S.range+' · priced value only'
 }
 function render(){
-  let cost=0,estimated=0,count=0;
-  S.h.forEach(h=>{let cb=+h.cost_basis||0,qz=q(h.cards?.id),qty=+h.quantity||0;cost+=cb;count+=qty;estimated+=qz?(+qz.market_value_per_unit||0)*qty:cb});
-  let snap=S.snaps?.[S.snaps.length-1],display=snap?+snap.total_market_value:estimated,pnl=snap?+snap.unrealized_pnl:display-cost;
+  let cost=0,pricedValue=0,count=0,pricedCards=0,unpricedCost=0;
+  S.h.forEach(h=>{let cb=+h.cost_basis||0,qz=q(h.cards?.id),qty=+h.quantity||0;cost+=cb;count+=qty;if(qz&&qz.market_value_per_unit!=null){pricedValue+=(+qz.market_value_per_unit||0)*qty;pricedCards+=qty}else{unpricedCost+=cb}});
+  let display=pricedValue,pnl=pricedValue-(cost-unpricedCost),coverage=count>0?pricedCards/count:0;
   $('value').textContent=M(display);
-  $('pnlhero').textContent=(pnl>=0?'+':'')+M(pnl)+' all-time';
-  $('pnlhero').className='heropnl '+(pnl>=0?'pnlpos':'pnlneg');
+  $('pnlhero').textContent=`${pricedCards} of ${count} card${count===1?'':'s'} priced · ${(coverage*100).toFixed(0)}% coverage · Unpriced cost ${M(unpricedCost)}`;
+  $('pnlhero').className='heropnl muted';
   $('trophycount').textContent=count+' card'+(count===1?'':'s');
   $('holdings').innerHTML=S.h.map((h,i)=>{
     let z=q(h.cards?.id),unit=z?+z.market_value_per_unit:null,qty=+h.quantity||0,c=h.cards||{},img=c.image_url?`<img src="${c.image_url}" alt="${c.player_name||'Card'}">`:`<div class="cardplaceholder">CA</div>`;
