@@ -909,6 +909,5 @@
   window.loadFlips =
     loadFlips;
 
-  loadFlips();
 })();
 
