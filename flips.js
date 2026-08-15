@@ -382,6 +382,15 @@
 
     const result =
       oldView(v);
+      const flipsPage =
+  document.getElementById('flips');
+
+if (flipsPage) {
+  flipsPage.classList.toggle(
+    'hidden',
+    v !== 'flips'
+  );
+}
 
     if (v === 'flips') {
       const n =
