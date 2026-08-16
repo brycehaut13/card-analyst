@@ -80,12 +80,19 @@
     return;
   }
 
+  let savedPasses = {};
+  try {
+    savedPasses = JSON.parse(localStorage.getItem('flipPasses') || '{}') || {};
+  } catch (_) {
+    savedPasses = {};
+  }
+
   S.tradingDesk = S.tradingDesk || {
     feed: [],
     orders: [],
     drafts: [],
     filter: 'all',
-    passing: JSON.parse(localStorage.getItem('flipPasses') || '{}')
+    passing: savedPasses
   };
 
   const STATES = [
@@ -409,6 +416,12 @@
   }
 
   async function transitionOrder(order, toState) {
+    const id = order.id;
+
+    if (!id) {
+      throw new Error('Order id missing; cannot transition.');
+    }
+
     const fromState = stateFromOrder(order);
     const expectedNext = NEXT_STATE[fromState];
 
@@ -434,12 +447,6 @@
       if (result !== null) {
         return result;
       }
-    }
-
-    const id = order.id;
-
-    if (!id) {
-      throw new Error('Order id missing; cannot transition.');
     }
 
     const stateCol = order.execution_state != null
@@ -605,6 +612,7 @@
     const eligible = canApprove(x, order);
     const next = order ? nextAllowedState(order) : 'APPROVED';
     const profit = num(x.expected_profit) || 0;
+    const roi = num(x.expected_roi) || 0;
     const compN = compCount(x);
 
     const signal = esc(x.flip_tier || 'SIGNAL');
@@ -640,7 +648,7 @@
               <div class="metric"><small>Fair exit price</small><b>${cash(x.fair_exit_price)}</b></div>
               <div class="metric"><small>Max buy price</small><b>${cash(x.max_buy_price)}</b></div>
               <div class="metric"><small>Expected profit</small><b class="${profit >= 0 ? 'pos' : 'neg'}">${profit >= 0 ? '+' : ''}${cash(profit)}</b></div>
-              <div class="metric"><small>Expected ROI</small><b class="${profit >= 0 ? 'pos' : 'neg'}">${pct(x.expected_roi)}</b></div>
+              <div class="metric"><small>Expected ROI</small><b class="${roi >= 0 ? 'pos' : 'neg'}">${pct(x.expected_roi)}</b></div>
               <div class="metric"><small>Exact-match confidence</small><b>${confidencePct(x.exact_match_confidence)}</b></div>
               <div class="metric"><small>Market confidence</small><b>${confidencePct(x.market_confidence)}</b></div>
               <div class="metric"><small>Listing freshness</small><b>${esc(rowFreshness(x))}</b></div>
