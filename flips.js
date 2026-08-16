@@ -272,6 +272,8 @@
   function canApprove(row, order) {
     if (order) {
       const current = stateFromOrder(order);
+      // VERIFIED → RESALE DRAFTED requires the dedicated draft-creation flow
+      if (current === 'VERIFIED') return false;
       return !!NEXT_STATE[current];
     }
 
@@ -281,7 +283,7 @@
     const market = num(row.market_confidence) ?? 0;
     const acceptableTier = tier === 'BUY NOW' || tier === 'BEST OFFER' || tier === 'BUY';
 
-    return (explicit || (acceptableTier && exact >= 0.9 && market >= 0.9)) && compileBlockers(row).length === 0;
+    return (explicit || (acceptableTier && exact >= 0.98 && market >= 0.65)) && compileBlockers(row).length === 0;
   }
 
   function signalClass(tier) {
@@ -289,6 +291,20 @@
     if (t.includes('PASS')) return 'pass';
     if (t.includes('RESEARCH') || t.includes('VERIFY')) return 'research';
     return '';
+  }
+
+  function draftByOrder(drafts) {
+    const out = {};
+
+    (drafts || []).forEach(d => {
+      const id = String(d.execution_order_id || '');
+
+      if (id && !out[id]) {
+        out[id] = d;
+      }
+    });
+
+    return out;
   }
 
   function byUpdatedDesc(a, b) {
@@ -401,6 +417,34 @@
     }
 
     throw new Error('Execution gate RPC not available for this environment.');
+  }
+
+  async function createResaleDraft(order) {
+    const orderId = order?.id;
+
+    if (!orderId) {
+      throw new Error('Order id missing; cannot create resale draft.');
+    }
+
+    const state = stateFromOrder(order);
+
+    if (state !== 'VERIFIED') {
+      throw new Error('Resale draft can only be created for VERIFIED orders. Current state: ' + state);
+    }
+
+    const existing = draftByOrder(S.tradingDesk.drafts || [])[String(orderId)];
+
+    if (existing) {
+      throw new Error('A resale draft already exists for this execution order.');
+    }
+
+    const result = await safeRpc('create_flip_resale_draft', { p_execution_order_id: orderId });
+
+    if (result !== null) {
+      return result;
+    }
+
+    throw new Error('create_flip_resale_draft RPC not available for this environment.');
   }
 
   async function transitionOrder(order, toState) {
@@ -579,6 +623,10 @@
     const roi = num(x.expected_roi) || 0;
     const compN = compCount(x);
 
+    const draft = order ? draftByOrder(S.tradingDesk.drafts || [])[String(order.id)] : null;
+    const isDraftable = state === 'VERIFIED' && order && !draft;
+    const hasDraft = !!draft;
+
     const signal = esc(x.flip_tier || 'SIGNAL');
     const meta = [x.player_name, x.year, x.set_name, x.card_number ? '#' + x.card_number : null, x.parallel]
       .filter(Boolean)
@@ -629,10 +677,12 @@
         <div class="deskfoot">
           <div class="footmeta">
             Signal score ${Math.round(num(x.flip_score) || 0)} · Exact ${confidencePct(x.exact_match_confidence)} · Market ${confidencePct(x.market_confidence)}
+            ${hasDraft ? `<br><span class="statechip" style="display:inline-block;margin-top:4px">Draft: ${esc(draft.draft_status || draft.status || 'PENDING')}</span>` : ''}
           </div>
 
           <div class="actions">
             <button class="act primary" data-action="approve" data-key="${esc(key)}" ${eligible ? '' : 'disabled'}>${order ? `MOVE → ${esc(next || 'DONE')}` : 'APPROVE / CREATE ORDER'}</button>
+            ${isDraftable ? `<button class="act primary" data-action="draft" data-key="${esc(key)}">PREPARE RESALE DRAFT</button>` : ''}
             <button class="act warn" data-action="pass" data-key="${esc(key)}">PASS</button>
             <button class="act" data-action="open" data-url="${esc(x.item_url || '')}" ${x.item_url ? '' : 'disabled'}>OPEN ON EBAY</button>
           </div>
@@ -710,6 +760,36 @@
         S.tradingDesk.passing[key] = true;
         localStorage.setItem('flipPasses', JSON.stringify(S.tradingDesk.passing));
         draw();
+      };
+    });
+
+    root.querySelectorAll('[data-action="draft"]').forEach(button => {
+      button.onclick = async () => {
+        const key = button.dataset.key;
+
+        if (!key) {
+          return;
+        }
+
+        const row = (S.tradingDesk.feed || []).find(x => listingKey(x) === key);
+        const order = orderByListing(S.tradingDesk.orders)[key] || null;
+
+        if (!row || !order || stateFromOrder(order) !== 'VERIFIED') {
+          return;
+        }
+
+        button.disabled = true;
+        button.textContent = 'Preparing…';
+
+        try {
+          await createResaleDraft(order);
+          await loadFlips();
+        } catch (error) {
+          console.error(error);
+          alert(error.message || 'Could not prepare resale draft.');
+          button.disabled = false;
+          button.textContent = 'PREPARE RESALE DRAFT';
+        }
       };
     });
 
