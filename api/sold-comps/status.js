@@ -16,39 +16,10 @@
 
 'use strict';
 
-const SUPABASE_URL =
-  process.env.SUPABASE_URL ||
-  'https://tjqeuiqyjdhpjgzhfwev.supabase.co';
-
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-function sbHeaders(extra) {
-  if (!SUPABASE_KEY) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY');
-  return {
-    apikey: SUPABASE_KEY,
-    Authorization: `******
-    'Content-Type': 'application/json',
-    ...extra
-  };
-}
-
-async function sb(path, options) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    method: 'GET',
-    ...options,
-    headers: sbHeaders((options && options.headers) || {})
-  });
-  const text = await response.text();
-  let data;
-  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-  if (!response.ok) {
-    throw new Error(`Supabase ${response.status}: ${typeof data === 'string' ? data : JSON.stringify(data)}`);
-  }
-  return data || [];
-}
+const { sb } = require('./supabase-client');
 
 async function safeQuery(path, options) {
-  try { return await sb(path, options); } catch { return null; }
+  try { return await sb(path, { method: 'GET', ...options }); } catch { return null; }
 }
 
 module.exports = async function handler(req, res) {

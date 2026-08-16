@@ -291,28 +291,82 @@ test('SOLD_COMP_MIN_CONFIDENCE is 0.98', () => {
 
 // ── Valuation/hot-watch refresh is triggered post-ingest ─────────────────
 
-test('ingestComps calls refresh hooks after accepted comp (mocked)', async () => {
-  // We verify this via module inspection: ingest.js calls sbRpc with
-  // 'refresh_flip_valuation' and 'sync_flip_hot_watch'.
-  // In a real integration test these would be verified against a test DB.
-  // Here we verify the source text contains the expected RPC call names.
-  const fs = require('node:fs');
-  const src = fs.readFileSync(
-    require.resolve('./ingest'),
-    'utf8'
-  );
-  assert.ok(
-    src.includes('refresh_flip_valuation'),
-    'ingest.js must call refresh_flip_valuation RPC'
-  );
-  assert.ok(
-    src.includes('sync_flip_hot_watch'),
-    'ingest.js must call sync_flip_hot_watch RPC'
-  );
-  assert.ok(
-    src.includes('ingest_verified_market_comp'),
-    'ingest.js must call ingest_verified_market_comp RPC'
-  );
+test('ingestComps triggers refresh_flip_valuation and sync_flip_hot_watch after accepted comp', async () => {
+  // We verify this by stubbing the global fetch used by ingest.js so we can
+  // observe which Supabase RPC functions are called.
+
+  const calledRpcs = [];
+  const originalFetch = global.fetch;
+  const originalKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  // Provide a dummy key so sbHeaders() does not throw
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
+
+  global.fetch = async (url) => {
+    const urlStr = String(url);
+    // Capture RPC calls
+    const rpcMatch = urlStr.match(/\/rpc\/([^?/]+)/);
+    if (rpcMatch) {
+      calledRpcs.push(rpcMatch[1]);
+    }
+    return { ok: true, status: 200, text: async () => '[]' };
+  };
+
+  try {
+    // Clear module cache so ingest.js picks up the stubbed environment
+    delete require.cache[require.resolve('./ingest')];
+    delete require.cache[require.resolve('./supabase-client')];
+    const ingestModule = require('./ingest');
+
+    const target = {
+      catalog_id: 'test-catalog-id',
+      player_name: 'Zion Williamson',
+      year: '2019',
+      set_name: 'Prizm',
+      card_number: '248',
+      parallel: '',
+      serial_to: null,
+      require_autograph: false,
+      grade: '',
+      grader: ''
+    };
+
+    const comps = [{
+      sourceItemId: 'test-item-001',
+      title: '2019 Panini Prizm Zion Williamson #248 RC',
+      salePrice: 35,
+      shippingPrice: null,
+      saleDate: '2026-07-01',
+      itemUrl: null,
+      condition: 'Ungraded',
+      providerPayload: {}
+    }];
+
+    await ingestModule.ingestComps(target, 'test_provider', comps);
+
+    assert.ok(
+      calledRpcs.includes('ingest_verified_market_comp'),
+      `Expected ingest_verified_market_comp to be called. Called: ${calledRpcs.join(', ')}`
+    );
+    assert.ok(
+      calledRpcs.includes('refresh_flip_valuation'),
+      `Expected refresh_flip_valuation to be called. Called: ${calledRpcs.join(', ')}`
+    );
+    assert.ok(
+      calledRpcs.includes('sync_flip_hot_watch'),
+      `Expected sync_flip_hot_watch to be called. Called: ${calledRpcs.join(', ')}`
+    );
+  } finally {
+    global.fetch = originalFetch;
+    if (originalKey === undefined) {
+      delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    } else {
+      process.env.SUPABASE_SERVICE_ROLE_KEY = originalKey;
+    }
+    // Restore module cache
+    delete require.cache[require.resolve('./ingest')];
+    delete require.cache[require.resolve('./supabase-client')];
+  }
 });
 
 // ── Confidence threshold boundary tests ──────────────────────────────────

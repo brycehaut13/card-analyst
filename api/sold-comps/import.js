@@ -33,34 +33,15 @@
 
 const manualImportAdapter = require('./providers/manual-import');
 const { ingestComps } = require('./ingest');
-
-const SUPABASE_URL =
-  process.env.SUPABASE_URL ||
-  'https://tjqeuiqyjdhpjgzhfwev.supabase.co';
-
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-function sbHeaders(extra) {
-  if (!SUPABASE_KEY) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY');
-  return {
-    apikey: SUPABASE_KEY,
-    Authorization: `******
-    'Content-Type': 'application/json',
-    ...extra
-  };
-}
+const { sb } = require('./supabase-client');
 
 async function fetchTarget(catalogId) {
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/catalog_cards` +
+  const rows = await sb(
+    `catalog_cards` +
     `?id=eq.${encodeURIComponent(catalogId)}` +
     `&select=id,player_name,year,set_name,card_number,parallel,serial_to,require_autograph,grade,grader`,
-    { headers: sbHeaders() }
+    { method: 'GET' }
   );
-  if (!response.ok) {
-    throw new Error(`Could not load catalog card ${catalogId}: HTTP ${response.status}`);
-  }
-  const rows = await response.json();
   if (!rows || rows.length === 0) {
     throw new Error(`Catalog card ${catalogId} not found`);
   }
@@ -111,8 +92,17 @@ module.exports = async function handler(req, res) {
     const contentType = req.headers['content-type'] || '';
 
     if (contentType.includes('text/csv')) {
-      const csvText = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-      const parsed = parseCsv(csvText);
+      // For CSV uploads, req.body must be a raw string.  If a framework
+      // middleware has already parsed it (e.g. body-parser JSON), we cannot
+      // recover the original CSV text and must reject the request.
+      if (typeof req.body !== 'string') {
+        return res.status(400).json({
+          error:
+            'CSV body must be sent as raw text/csv. ' +
+            'Ensure the request body has not been pre-parsed by JSON middleware.'
+        });
+      }
+      const parsed = parseCsv(req.body);
       if (!parsed.length) {
         return res.status(400).json({ error: 'CSV contained no data rows' });
       }

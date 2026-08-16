@@ -13,50 +13,7 @@
 
 'use strict';
 
-const SUPABASE_URL =
-  process.env.SUPABASE_URL ||
-  'https://tjqeuiqyjdhpjgzhfwev.supabase.co';
-
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-function sbHeaders(extra) {
-  if (!SUPABASE_KEY) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY');
-  return {
-    apikey: SUPABASE_KEY,
-    Authorization: `******
-    'Content-Type': 'application/json',
-    ...extra
-  };
-}
-
-async function sb(path, options) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    ...options,
-    headers: sbHeaders(options.headers || {})
-  });
-  const text = await response.text();
-  let data;
-  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-  if (!response.ok) {
-    throw new Error(`Supabase ${response.status}: ${typeof data === 'string' ? data : JSON.stringify(data)}`);
-  }
-  return data;
-}
-
-async function sbRpc(fn, args) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
-    method: 'POST',
-    headers: sbHeaders({ Prefer: 'return=representation' }),
-    body: JSON.stringify(args)
-  });
-  const text = await response.text();
-  let data;
-  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-  if (!response.ok) {
-    throw new Error(`Supabase RPC ${fn} ${response.status}: ${typeof data === 'string' ? data : JSON.stringify(data)}`);
-  }
-  return data;
-}
+const { sb } = require('./supabase-client');
 
 /**
  * Fetch due enrichment targets ordered by priority.

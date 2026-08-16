@@ -24,6 +24,7 @@ const {
   finishRunLog
 } = require('./queue');
 const { PROVIDER_STATUS } = require('./providers/base');
+const { sb } = require('./supabase-client');
 
 // ── Configuration ──────────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ const PROVIDER_ADAPTERS = [ebayInsightsAdapter];
 
 const providerBackoff = {};
 
-function isProviderBacked(providerName) {
+function isProviderInBackoff(providerName) {
   const backoff = providerBackoff[providerName];
   return backoff && Date.now() < backoff.until;
 }
@@ -88,7 +89,7 @@ async function processTarget(target) {
   const summary = { accepted: 0, review: 0, rejected: 0, duplicates: 0, errors: 0 };
 
   for (const adapter of PROVIDER_ADAPTERS) {
-    if (isProviderBacked(adapter.name)) {
+    if (isProviderInBackoff(adapter.name)) {
       continue; // skip until backoff expires
     }
 
@@ -156,20 +157,10 @@ async function processTarget(target) {
  * Stored in sold_comp_provider_status so the admin view can surface it.
  */
 async function recordProviderUnavailable(catalogId, providerName, message) {
-  const SUPABASE_URL =
-    process.env.SUPABASE_URL || 'https://tjqeuiqyjdhpjgzhfwev.supabase.co';
-  const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!SUPABASE_KEY) return;
-
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/sold_comp_provider_status`, {
+    await sb('sold_comp_provider_status', {
       method: 'POST',
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `******
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal,resolution=merge-duplicates'
-      },
+      headers: { Prefer: 'return=minimal,resolution=merge-duplicates' },
       body: JSON.stringify({
         catalog_id: catalogId,
         provider_name: providerName,
