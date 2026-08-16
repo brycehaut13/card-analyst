@@ -1,6 +1,7 @@
 // Tests for resale draft preparation logic (mirrors flips.js client-side helpers).
 // These pure functions are duplicated here for testability since flips.js runs as
-// a browser IIFE. Any logic change in flips.js must be reflected here too.
+// a browser IIFE with no module system. If you change draftTargetPrice, draftByOrder,
+// or validateDraftCreation logic in flips.js, update the copies below to match.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

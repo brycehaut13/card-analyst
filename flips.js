@@ -368,6 +368,8 @@
     return 'Ungraded / Raw';
   }
 
+  const SHIPPING_NOTE = 'Ships via USPS with tracking.';
+
   function buildDescription(order, row) {
     const src = order || {};
     const fb = row || {};
@@ -397,7 +399,7 @@
       desc += ' Autograph';
     }
 
-    desc += '. Raw/Ungraded unless otherwise noted. Ships via USPS with tracking.';
+    desc += '. Raw/Ungraded unless otherwise noted. ' + SHIPPING_NOTE;
 
     return desc.trim();
   }
