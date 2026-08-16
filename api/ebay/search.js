@@ -898,9 +898,6 @@ async function handler(req, res) {
             match.reasons
         };
 
-        module.exports._test = {
-          scoreExactMatch
-        };
       });
 
     const accepted =
@@ -1114,6 +1111,8 @@ async function handler(req, res) {
   }
 };
 
-module.exports._test = {
-  scoreExactMatch
-};
+if (process.env.NODE_ENV === 'test') {
+  module.exports._test = {
+    scoreExactMatch
+  };
+}

@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+process.env.NODE_ENV = 'test';
+
 const { _test } = require('./search');
 
 const targetBaseZion = {
