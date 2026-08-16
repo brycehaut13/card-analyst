@@ -372,36 +372,24 @@
 
   async function createExecutionOrder(row) {
     const key = listingKey(row);
+    const sourceItemId = String(row?.source_item_id || '').trim();
 
     if (!key) {
       throw new Error('Missing listing id for this signal.');
+    }
+
+    if (!sourceItemId) {
+      throw new Error('Missing source_item_id for this signal.');
     }
 
     if (orderByListing(S.tradingDesk.orders)[key]) {
       throw new Error('Execution order already exists for this listing.');
     }
 
-    const payload = {
-      p_source_item_id: key,
-      p_listing_id: key,
-      p_item_url: row.item_url || null,
-      p_signal_tier: row.flip_tier || null,
-      p_signal_score: num(row.flip_score),
-      p_all_in_buy_cost: num(row.all_in_buy_cost),
-      p_expected_profit: num(row.expected_profit),
-      p_expected_roi: num(row.expected_roi),
-      p_max_buy_price: num(row.max_buy_price),
-      p_fair_exit_price: num(row.fair_exit_price),
-      p_exact_match_confidence: num(row.exact_match_confidence),
-      p_market_confidence: num(row.market_confidence)
-    };
-
+    const payload = { p_source_item_id: sourceItemId };
     const rpcNames = [
-      'approve_flip_execution_signal',
       'create_flip_execution_order',
-      'create_execution_order_from_signal',
-      'flip_execution_create_order',
-      'flip_execution_approve_signal'
+      'queue_flip_execution'
     ];
 
     for (const name of rpcNames) {
@@ -422,8 +410,7 @@
       throw new Error('Order id missing; cannot transition.');
     }
 
-    const fromState = stateFromOrder(order);
-    const expectedNext = NEXT_STATE[fromState];
+    const expectedNext = NEXT_STATE[stateFromOrder(order)];
 
     if (!expectedNext || expectedNext !== toState) {
       throw new Error('Invalid state transition requested.');
@@ -431,42 +418,19 @@
 
     const payload = {
       p_order_id: order.id,
-      p_from_state: fromState,
       p_to_state: toState
     };
 
-    const rpcNames = [
+    const result = await safeRpc(
       'transition_flip_execution_order',
-      'advance_flip_execution_order',
-      'flip_execution_transition'
-    ];
+      payload
+    );
 
-    for (const name of rpcNames) {
-      const result = await safeRpc(name, payload);
-
-      if (result !== null) {
-        return result;
-      }
+    if (result !== null) {
+      return result;
     }
 
-    const stateCol = order.execution_state != null
-      ? 'execution_state'
-      : order.order_state != null
-        ? 'order_state'
-        : order.state != null
-          ? 'state'
-          : 'status';
-
-    await api(`/rest/v1/flip_execution_orders?id=eq.${id}`, {
-      method: 'PATCH',
-      headers: {
-        Prefer: 'return=representation'
-      },
-      body: JSON.stringify({
-        [stateCol]: toState,
-        updated_at: new Date().toISOString()
-      })
-    });
+    throw new Error('transition_flip_execution_order RPC not available for this environment.');
   }
 
   function pilotStats(feed, orders, drafts) {
