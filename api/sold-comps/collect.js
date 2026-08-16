@@ -9,7 +9,7 @@
 
 'use strict';
 
-const { runEnrichment } = require('./runner');
+const { runEnrichment } = require('../../lib/sold-comps/runner');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {

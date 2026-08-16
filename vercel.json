@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "api/ebay/account-deletion.js": {},
+    "api/ebay/collect.js": {},
+    "api/ebay/search.js": {},
+    "api/ocdb.js": {},
+    "api/sold-comps/collect.js": {},
+    "api/sold-comps/import.js": {},
+    "api/sold-comps/status.js": {}
+  }
+}

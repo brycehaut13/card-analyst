@@ -31,9 +31,9 @@
 
 'use strict';
 
-const manualImportAdapter = require('./providers/manual-import');
-const { ingestComps } = require('./ingest');
-const { sb } = require('./supabase-client');
+const manualImportAdapter = require('../../lib/sold-comps/providers/manual-import');
+const { ingestComps } = require('../../lib/sold-comps/ingest');
+const { sb } = require('../../lib/sold-comps/supabase-client');
 
 async function fetchTarget(catalogId) {
   const rows = await sb(

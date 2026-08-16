@@ -16,7 +16,7 @@
 
 'use strict';
 
-const { sb } = require('./supabase-client');
+const { sb } = require('../../lib/sold-comps/supabase-client');
 
 async function safeQuery(path, options) {
   try { return await sb(path, { method: 'GET', ...options }); } catch { return null; }
