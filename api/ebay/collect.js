@@ -422,7 +422,13 @@ function listingRow(
         target.serial_to,
 
       isAutograph:
-        target.require_autograph
+        target.require_autograph,
+
+      grade:
+        target.grade,
+
+      grader:
+        target.grader
     },
 
     raw_payload:
@@ -856,6 +862,20 @@ async function searchCard(
       String(
         target.serial_to
       )
+    );
+  }
+
+  if (target.grade) {
+    params.set(
+      'grade',
+      target.grade
+    );
+  }
+
+  if (target.grader) {
+    params.set(
+      'grader',
+      target.grader
     );
   }
 

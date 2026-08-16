@@ -118,6 +118,9 @@ function looksLikeLot(title) {
 }
 
 const PARALLEL_CONFLICTS = [
+  'silver',
+  'refractor',
+  'holo',
   'hyper',
   'wave',
   'china',
@@ -164,6 +167,13 @@ const PARALLEL_CONFLICTS = [
   'teal'
 ];
 
+const BASE_PARALLEL_CONFLICTS = [
+  ...PARALLEL_CONFLICTS,
+  'pink cracked ice',
+  'red white blue',
+  'red/white/blue'
+];
+
 const SET_STOPWORDS = new Set([
   'topps',
   'panini',
@@ -189,6 +199,12 @@ function scoreExactMatch(item, target) {
 
   const wanted =
     norm(target.parallel || '');
+
+  const wantedGrader =
+    norm(target.grader || '');
+
+  const wantedGrade =
+    norm(target.grade || '');
 
   const reasons = [];
 
@@ -281,38 +297,44 @@ function scoreExactMatch(item, target) {
     );
   }
 
-  if (wanted) {
-    for (
-      const conflict
-      of PARALLEL_CONFLICTS
+  const parallelConflicts =
+    wanted
+      ? PARALLEL_CONFLICTS
+      : BASE_PARALLEL_CONFLICTS;
+
+  for (
+    const conflict
+    of parallelConflicts
+  ) {
+    const conflictNorm =
+      norm(conflict);
+
+    const conflictIsSetWord =
+      targetSet.includes(
+        conflictNorm
+      );
+
+    const conflictIsWanted =
+      wanted.includes(
+        conflictNorm
+      );
+
+    if (
+      hasWord(title, conflict) &&
+      !conflictIsWanted &&
+      !conflictIsSetWord
     ) {
-      const conflictNorm =
-        norm(conflict);
-
-      const conflictIsSetWord =
-        targetSet.includes(
-          conflictNorm
-        );
-
-      const conflictIsWanted =
-        wanted.includes(
-          conflictNorm
-        );
-
-      if (
-        hasWord(title, conflict) &&
-        !conflictIsWanted &&
-        !conflictIsSetWord
-      ) {
-        return {
-          score: 0.25,
-          status: 'rejected',
-          reasons: [
-            `wrong_parallel:${conflict}`
-          ]
-        };
-      }
+      return {
+        score: 0.25,
+        status: 'rejected',
+        reasons: [
+          `wrong_parallel:${conflict}`
+        ]
+      };
     }
+  }
+
+  if (wanted) {
 
     const wantedTokens =
       wanted
@@ -399,6 +421,17 @@ function scoreExactMatch(item, target) {
         ]
       };
     }
+  } else if (
+    /(^| )(auto|autograph|autographs)( |$)/
+      .test(title)
+  ) {
+    return {
+      score: 0.25,
+      status: 'rejected',
+      reasons: [
+        'unexpected_autograph'
+      ]
+    };
   }
 
   const gradedWords = [
@@ -440,6 +473,100 @@ function scoreExactMatch(item, target) {
         'graded_copy'
       ]
     };
+  }
+
+  const titleGraderMatch =
+    String(rawTitle).match(
+      /\b(psa|bgs|sgc|cgc|gma|beckett)\b/i
+    );
+
+  const titleGradeMatch =
+    String(rawTitle).match(
+      /\b(?:psa|bgs|sgc|cgc|gma|beckett)\s*(\d{1,2}(?:\.\d)?)\b/i
+    );
+
+  const titleGrader =
+    norm(
+      titleGraderMatch?.[1] || ''
+    );
+
+  const titleGrade =
+    norm(
+      titleGradeMatch?.[1] || ''
+    );
+
+  if (wantedGrader) {
+    if (
+      titleGrader &&
+      !(
+        titleGrader === wantedGrader ||
+        (
+          wantedGrader ===
+            'beckett' &&
+          titleGrader === 'bgs'
+        ) ||
+        (
+          wantedGrader === 'bgs' &&
+          titleGrader ===
+            'beckett'
+        )
+      )
+    ) {
+      return {
+        score: 0.2,
+        status: 'rejected',
+        reasons: [
+          `wrong_grader:${titleGrader}`
+        ]
+      };
+    }
+
+    if (
+      !hasWord(title, wantedGrader) &&
+      !(
+        wantedGrader ===
+          'beckett' &&
+        hasWord(title, 'bgs')
+      ) &&
+      !(
+        wantedGrader === 'bgs' &&
+        hasWord(title, 'beckett')
+      )
+    ) {
+      score -= 0.22;
+
+      reasons.push(
+        'grader_not_explicit'
+      );
+    }
+  }
+
+  if (wantedGrade) {
+    if (
+      titleGrade &&
+      titleGrade !== wantedGrade
+    ) {
+      return {
+        score: 0.2,
+        status: 'rejected',
+        reasons: [
+          `wrong_grade:${titleGrade}`
+        ]
+      };
+    }
+
+    if (
+      !containsNormalizedPhrase(
+        title,
+        wantedGrade
+      )
+    ) {
+      score -= 0.22;
+
+      reasons.push(
+        'grade_not_explicit'
+      );
+    }
   }
 
   if (
@@ -555,6 +682,16 @@ async function handler(req, res) {
         'true'
       ) !== 'false';
 
+    const grade =
+      String(
+        req.query.grade || ''
+      ).trim();
+
+    const grader =
+      String(
+        req.query.grader || ''
+      ).trim();
+
     if (!player) {
       return res
         .status(400)
@@ -595,7 +732,11 @@ async function handler(req, res) {
         `/${serialTo}`,
 
       isAutograph &&
-        'Auto'
+        'Auto',
+
+      grader,
+
+      grade
     ]
       .filter(Boolean)
       .join(' ');
@@ -649,7 +790,9 @@ async function handler(req, res) {
       parallel,
       serialTo,
       isAutograph,
-      rawOnly
+      rawOnly,
+      grade,
+      grader
     };
 
     const evaluated =
@@ -754,6 +897,7 @@ async function handler(req, res) {
           rejectionReasons:
             match.reasons
         };
+
       });
 
     const accepted =
@@ -966,3 +1110,9 @@ async function handler(req, res) {
       });
   }
 };
+
+if (process.env.NODE_ENV === 'test') {
+  module.exports._test = {
+    scoreExactMatch
+  };
+}
