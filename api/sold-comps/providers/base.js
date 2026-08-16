@@ -22,8 +22,17 @@
  *     saleDate:      string,   // ISO-8601
  *     itemUrl:       string|null,
  *     condition:     string|null,
+ *     marketplace:   string,   // provider slug, e.g. 'ebay_insights', 'goldin'
+ *                              // used to separate ebay_execution_fair_value
+ *                              // from blended_market_fair_value
  *     providerPayload: object  // raw provider response, preserved verbatim
  *   }
+ *
+ * Valuation outputs (computed by valuation.js from accepted comps):
+ *   ebay_execution_fair_value  – Flips only; derived solely from eBay comps
+ *   blended_market_fair_value  – Portfolio/Golden Goose; cross-marketplace,
+ *                                weighted by confidence, recency, liquidity,
+ *                                marketplace relevance, and sale type
  */
 
 const PROVIDER_STATUS = Object.freeze({
@@ -83,10 +92,26 @@ function errorResult(message) {
   };
 }
 
+/**
+ * Provider slugs that are considered eBay-origin.
+ * Only these contribute to ebay_execution_fair_value.
+ */
+const EBAY_PROVIDER_NAMES = Object.freeze(['ebay_insights', 'ebay_manual']);
+
+/**
+ * Returns true if a provider name belongs to eBay.
+ * Used by valuation.js to keep eBay and non-eBay comps separate.
+ */
+function isEbayProvider(providerName) {
+  return EBAY_PROVIDER_NAMES.includes(String(providerName));
+}
+
 module.exports = {
   PROVIDER_STATUS,
   unavailableResult,
   rateLimitedResult,
   okResult,
-  errorResult
+  errorResult,
+  EBAY_PROVIDER_NAMES,
+  isEbayProvider
 };

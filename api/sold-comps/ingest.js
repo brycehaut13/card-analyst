@@ -19,6 +19,7 @@
 
 const { scoreSoldComp, SOLD_COMP_MIN_CONFIDENCE } = require('./identity');
 const { sb, sbRpc } = require('./supabase-client');
+const { computeValuation } = require('./valuation');
 
 // ── Deduplication ──────────────────────────────────────────────────────────
 
@@ -41,12 +42,19 @@ async function fetchExistingIds(catalogId, providerName) {
 
 /**
  * Trigger the flip valuation refresh for a catalog card.
+ * Passes both valuation outputs so the RPC can persist them:
+ *   p_ebay_execution_fair_value  – used by Flips (eBay-only)
+ *   p_blended_market_fair_value  – used by Portfolio + Golden Goose
  * We call the existing RPC; if it doesn't exist yet the error is swallowed
  * so ingestion itself is not blocked.
  */
-async function refreshFlipValuation(catalogId) {
+async function refreshFlipValuation(catalogId, valuationResult) {
   try {
-    await sbRpc('refresh_flip_valuation', { p_catalog_id: catalogId });
+    await sbRpc('refresh_flip_valuation', {
+      p_catalog_id: catalogId,
+      p_ebay_execution_fair_value: valuationResult?.ebay_execution_fair_value ?? null,
+      p_blended_market_fair_value: valuationResult?.blended_market_fair_value ?? null
+    });
   } catch (err) {
     console.warn(`[ingest] refresh_flip_valuation skipped for ${catalogId}:`, err.message);
   }
@@ -138,6 +146,8 @@ async function ingestComps(target, providerName, comps) {
   }
 
   let anyAccepted = false;
+  // Accumulate accepted comps in the canonical shape that computeValuation expects
+  const acceptedCompRecords = [];
 
   for (const comp of comps) {
     try {
@@ -189,6 +199,15 @@ async function ingestComps(target, providerName, comps) {
       // Track in our dedup set so we don't double-insert within the same batch
       existingIds.add(String(comp.sourceItemId));
 
+      // Record for dual-path valuation computation
+      acceptedCompRecords.push({
+        provider_name: providerName,
+        sale_price: comp.salePrice,
+        shipping_price: comp.shippingPrice,
+        sale_date: comp.saleDate,
+        confidence_score: scoreResult.score
+      });
+
       summary.accepted++;
       anyAccepted = true;
 
@@ -198,9 +217,10 @@ async function ingestComps(target, providerName, comps) {
     }
   }
 
-  // After any accepted comps, refresh flip valuation and hot-watch
+  // After any accepted comps, compute both valuation paths then refresh
   if (anyAccepted) {
-    await refreshFlipValuation(catalogId);
+    const valuationResult = computeValuation(acceptedCompRecords);
+    await refreshFlipValuation(catalogId, valuationResult);
     await syncFlipHotWatch(catalogId);
   }
 
