@@ -272,6 +272,8 @@
   function canApprove(row, order) {
     if (order) {
       const current = stateFromOrder(order);
+      // VERIFIED → RESALE DRAFTED requires the dedicated draft-creation flow
+      if (current === 'VERIFIED') return false;
       return !!NEXT_STATE[current];
     }
 
@@ -281,7 +283,7 @@
     const market = num(row.market_confidence) ?? 0;
     const acceptableTier = tier === 'BUY NOW' || tier === 'BEST OFFER' || tier === 'BUY';
 
-    return (explicit || (acceptableTier && exact >= 0.9 && market >= 0.9)) && compileBlockers(row).length === 0;
+    return (explicit || (acceptableTier && exact >= 0.98 && market >= 0.65)) && compileBlockers(row).length === 0;
   }
 
   function signalClass(tier) {
@@ -289,6 +291,115 @@
     if (t.includes('PASS')) return 'pass';
     if (t.includes('RESEARCH') || t.includes('VERIFY')) return 'research';
     return '';
+  }
+
+  function draftByOrder(drafts) {
+    const out = {};
+
+    (drafts || []).forEach(d => {
+      const id = String(d.execution_order_id || '');
+
+      if (id && !out[id]) {
+        out[id] = d;
+      }
+    });
+
+    return out;
+  }
+
+  function draftTargetPrice(order, row) {
+    return num(
+      order?.resale_target_price ??
+      order?.fair_exit_price ??
+      row?.fair_exit_price ??
+      row?.resale_target_price
+    );
+  }
+
+  function buildDraftTitle(order, row) {
+    const src = order || {};
+    const fb = row || {};
+    const year = src.year ?? fb.year;
+    const brand = src.brand ?? src.manufacturer ?? fb.brand ?? fb.manufacturer;
+    const setName = src.set_name ?? src.product ?? fb.set_name ?? fb.product;
+    const player = src.player_name ?? src.player ?? fb.player_name ?? fb.player;
+    const cardNum = src.card_number ?? fb.card_number;
+    const parallel = src.parallel ?? fb.parallel;
+    const serialNum = src.serial_number ?? src.serial_to ?? fb.serial_number ?? fb.serial_to;
+    const isAuto = src.is_autograph ?? src.autograph ?? fb.is_autograph ?? fb.autograph;
+    const grade = src.grade ?? fb.grade;
+    const grader = src.grader ?? fb.grader;
+
+    const parts = [year, brand, setName, player, cardNum ? '#' + cardNum : null, parallel];
+
+    if (serialNum) {
+      parts.push('/' + serialNum);
+    }
+
+    if (isAuto) {
+      parts.push('Auto');
+    }
+
+    if (grade && grader) {
+      parts.push(grader + ' ' + grade);
+    } else if (grade) {
+      parts.push('Grade ' + grade);
+    }
+
+    const title = parts.filter(Boolean).join(' ').trim();
+
+    return title || String(src.display_name ?? fb.display_name ?? 'Card');
+  }
+
+  function buildConditionText(order, row) {
+    const src = order || {};
+    const fb = row || {};
+    const grade = src.grade ?? fb.grade;
+    const grader = src.grader ?? fb.grader;
+
+    if (grade && grader) {
+      return grader + ' ' + grade;
+    }
+
+    if (grade) {
+      return 'Grade ' + grade;
+    }
+
+    return 'Ungraded / Raw';
+  }
+
+  function buildDescription(order, row) {
+    const src = order || {};
+    const fb = row || {};
+    const player = String(src.player_name ?? src.player ?? fb.player_name ?? fb.player ?? '');
+    const year = String(src.year ?? fb.year ?? '');
+    const setName = String(src.set_name ?? src.product ?? fb.set_name ?? fb.product ?? '');
+    const cardNum = String(src.card_number ?? fb.card_number ?? '');
+    const parallel = String(src.parallel ?? fb.parallel ?? '');
+    const serialNum = String(src.serial_number ?? src.serial_to ?? fb.serial_number ?? fb.serial_to ?? '');
+    const isAuto = src.is_autograph ?? src.autograph ?? fb.is_autograph ?? fb.autograph;
+
+    let desc = [year, setName, player].filter(Boolean).join(' ');
+
+    if (cardNum) {
+      desc += ' #' + cardNum;
+    }
+
+    if (parallel) {
+      desc += ' ' + parallel;
+    }
+
+    if (serialNum) {
+      desc += ' /' + serialNum;
+    }
+
+    if (isAuto) {
+      desc += ' Autograph';
+    }
+
+    desc += '. Raw/Ungraded unless otherwise noted. Ships via USPS with tracking.';
+
+    return desc.trim();
   }
 
   function byUpdatedDesc(a, b) {
@@ -401,6 +512,54 @@
     }
 
     throw new Error('Execution gate RPC not available for this environment.');
+  }
+
+  async function createResaleDraft(order, row) {
+    const orderId = order?.id;
+
+    if (!orderId) {
+      throw new Error('Order id missing; cannot create resale draft.');
+    }
+
+    const state = stateFromOrder(order);
+
+    if (state !== 'VERIFIED') {
+      throw new Error('Resale draft can only be created for VERIFIED orders. Current state: ' + state);
+    }
+
+    const existing = draftByOrder(S.tradingDesk.drafts || [])[String(orderId)];
+
+    if (existing) {
+      throw new Error('A resale draft already exists for this execution order.');
+    }
+
+    const src = row || {};
+    const imageUrls = [];
+
+    if (Array.isArray(order.image_urls) && order.image_urls.length) {
+      imageUrls.push(...order.image_urls);
+    } else if (src.image_url) {
+      imageUrls.push(src.image_url);
+    }
+
+    const payload = {
+      p_execution_order_id: orderId,
+      p_marketplace: 'ebay',
+      p_quantity: 1,
+      p_target_price: draftTargetPrice(order, src),
+      p_title: buildDraftTitle(order, src),
+      p_condition_text: buildConditionText(order, src),
+      p_description: buildDescription(order, src),
+      p_image_urls: imageUrls
+    };
+
+    const result = await safeRpc('create_flip_resale_draft', payload);
+
+    if (result !== null) {
+      return result;
+    }
+
+    throw new Error('create_flip_resale_draft RPC not available for this environment.');
   }
 
   async function transitionOrder(order, toState) {
@@ -579,6 +738,10 @@
     const roi = num(x.expected_roi) || 0;
     const compN = compCount(x);
 
+    const draft = order ? draftByOrder(S.tradingDesk.drafts || [])[String(order.id)] : null;
+    const isDraftable = state === 'VERIFIED' && order && !draft;
+    const hasDraft = !!draft;
+
     const signal = esc(x.flip_tier || 'SIGNAL');
     const meta = [x.player_name, x.year, x.set_name, x.card_number ? '#' + x.card_number : null, x.parallel]
       .filter(Boolean)
@@ -629,10 +792,12 @@
         <div class="deskfoot">
           <div class="footmeta">
             Signal score ${Math.round(num(x.flip_score) || 0)} · Exact ${confidencePct(x.exact_match_confidence)} · Market ${confidencePct(x.market_confidence)}
+            ${hasDraft ? `<br><span class="statechip" style="display:inline-block;margin-top:4px">Draft: ${esc(draft.draft_status || draft.status || 'PENDING')}</span>` : ''}
           </div>
 
           <div class="actions">
             <button class="act primary" data-action="approve" data-key="${esc(key)}" ${eligible ? '' : 'disabled'}>${order ? `MOVE → ${esc(next || 'DONE')}` : 'APPROVE / CREATE ORDER'}</button>
+            ${isDraftable ? `<button class="act primary" data-action="draft" data-key="${esc(key)}">PREPARE RESALE DRAFT</button>` : ''}
             <button class="act warn" data-action="pass" data-key="${esc(key)}">PASS</button>
             <button class="act" data-action="open" data-url="${esc(x.item_url || '')}" ${x.item_url ? '' : 'disabled'}>OPEN ON EBAY</button>
           </div>
@@ -710,6 +875,36 @@
         S.tradingDesk.passing[key] = true;
         localStorage.setItem('flipPasses', JSON.stringify(S.tradingDesk.passing));
         draw();
+      };
+    });
+
+    root.querySelectorAll('[data-action="draft"]').forEach(button => {
+      button.onclick = async () => {
+        const key = button.dataset.key;
+
+        if (!key) {
+          return;
+        }
+
+        const row = (S.tradingDesk.feed || []).find(x => listingKey(x) === key);
+        const order = orderByListing(S.tradingDesk.orders)[key] || null;
+
+        if (!row || !order || stateFromOrder(order) !== 'VERIFIED') {
+          return;
+        }
+
+        button.disabled = true;
+        button.textContent = 'Preparing…';
+
+        try {
+          await createResaleDraft(order, row);
+          await loadFlips();
+        } catch (error) {
+          console.error(error);
+          alert(error.message || 'Could not prepare resale draft.');
+          button.disabled = false;
+          button.textContent = 'PREPARE RESALE DRAFT';
+        }
       };
     });
 
