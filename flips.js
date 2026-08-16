@@ -307,103 +307,6 @@
     return out;
   }
 
-  function draftTargetPrice(order, row) {
-    return num(
-      order?.resale_target_price ??
-      order?.fair_exit_price ??
-      row?.fair_exit_price ??
-      row?.resale_target_price
-    );
-  }
-
-  function buildDraftTitle(order, row) {
-    const src = order || {};
-    const fb = row || {};
-    const year = src.year ?? fb.year;
-    const brand = src.brand ?? src.manufacturer ?? fb.brand ?? fb.manufacturer;
-    const setName = src.set_name ?? src.product ?? fb.set_name ?? fb.product;
-    const player = src.player_name ?? src.player ?? fb.player_name ?? fb.player;
-    const cardNum = src.card_number ?? fb.card_number;
-    const parallel = src.parallel ?? fb.parallel;
-    const serialNum = src.serial_number ?? src.serial_to ?? fb.serial_number ?? fb.serial_to;
-    const isAuto = src.is_autograph ?? src.autograph ?? fb.is_autograph ?? fb.autograph;
-    const grade = src.grade ?? fb.grade;
-    const grader = src.grader ?? fb.grader;
-
-    const parts = [year, brand, setName, player, cardNum ? '#' + cardNum : null, parallel];
-
-    if (serialNum) {
-      parts.push('/' + serialNum);
-    }
-
-    if (isAuto) {
-      parts.push('Auto');
-    }
-
-    if (grade && grader) {
-      parts.push(grader + ' ' + grade);
-    } else if (grade) {
-      parts.push('Grade ' + grade);
-    }
-
-    const title = parts.filter(Boolean).join(' ').trim();
-
-    return title || String(src.display_name ?? fb.display_name ?? 'Card');
-  }
-
-  function buildConditionText(order, row) {
-    const src = order || {};
-    const fb = row || {};
-    const grade = src.grade ?? fb.grade;
-    const grader = src.grader ?? fb.grader;
-
-    if (grade && grader) {
-      return grader + ' ' + grade;
-    }
-
-    if (grade) {
-      return 'Grade ' + grade;
-    }
-
-    return 'Ungraded / Raw';
-  }
-
-  const SHIPPING_NOTE = 'Ships via USPS with tracking.';
-
-  function buildDescription(order, row) {
-    const src = order || {};
-    const fb = row || {};
-    const player = String(src.player_name ?? src.player ?? fb.player_name ?? fb.player ?? '');
-    const year = String(src.year ?? fb.year ?? '');
-    const setName = String(src.set_name ?? src.product ?? fb.set_name ?? fb.product ?? '');
-    const cardNum = String(src.card_number ?? fb.card_number ?? '');
-    const parallel = String(src.parallel ?? fb.parallel ?? '');
-    const serialNum = String(src.serial_number ?? src.serial_to ?? fb.serial_number ?? fb.serial_to ?? '');
-    const isAuto = src.is_autograph ?? src.autograph ?? fb.is_autograph ?? fb.autograph;
-
-    let desc = [year, setName, player].filter(Boolean).join(' ');
-
-    if (cardNum) {
-      desc += ' #' + cardNum;
-    }
-
-    if (parallel) {
-      desc += ' ' + parallel;
-    }
-
-    if (serialNum) {
-      desc += ' /' + serialNum;
-    }
-
-    if (isAuto) {
-      desc += ' Autograph';
-    }
-
-    desc += '. Raw/Ungraded unless otherwise noted. ' + SHIPPING_NOTE;
-
-    return desc.trim();
-  }
-
   function byUpdatedDesc(a, b) {
     return new Date(
       b.updated_at || b.created_at || 0
@@ -516,7 +419,7 @@
     throw new Error('Execution gate RPC not available for this environment.');
   }
 
-  async function createResaleDraft(order, row) {
+  async function createResaleDraft(order) {
     const orderId = order?.id;
 
     if (!orderId) {
@@ -535,27 +438,7 @@
       throw new Error('A resale draft already exists for this execution order.');
     }
 
-    const src = row || {};
-    const imageUrls = [];
-
-    if (Array.isArray(order.image_urls) && order.image_urls.length) {
-      imageUrls.push(...order.image_urls);
-    } else if (src.image_url) {
-      imageUrls.push(src.image_url);
-    }
-
-    const payload = {
-      p_execution_order_id: orderId,
-      p_marketplace: 'ebay',
-      p_quantity: 1,
-      p_target_price: draftTargetPrice(order, src),
-      p_title: buildDraftTitle(order, src),
-      p_condition_text: buildConditionText(order, src),
-      p_description: buildDescription(order, src),
-      p_image_urls: imageUrls
-    };
-
-    const result = await safeRpc('create_flip_resale_draft', payload);
+    const result = await safeRpc('create_flip_resale_draft', { p_execution_order_id: orderId });
 
     if (result !== null) {
       return result;
@@ -899,7 +782,7 @@
         button.textContent = 'Preparing…';
 
         try {
-          await createResaleDraft(order, row);
+          await createResaleDraft(order);
           await loadFlips();
         } catch (error) {
           console.error(error);
