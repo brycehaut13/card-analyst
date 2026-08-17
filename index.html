@@ -117,8 +117,122 @@ async function saveEdit(i){let x=trophyBase(i);await api('/rest/v1/rpc/update_co
 
 function editCostTrophy(i){let x=trophyBase(i);if(!x)return;let qty=+x.h.quantity||0,total=+x.h.cost_basis||0,per=qty?total/qty:0;$('sheet').innerHTML=`<button class="backbtn" onclick="openTrophyInvestment(${i})">← Back</button><div class="muted">COST BASIS CORRECTION</div><h2>${x.c.player_name||'Card'}</h2><div class="card"><div class="muted" style="font-size:12px;line-height:1.45">Owned: ${qty} · Current total cost basis: ${M(total)}</div><input id="ecostprice" class="input" type="number" min="0" step="0.01" value="${per.toFixed(2)}" placeholder="Purchase price per card"><input id="ecostfees" class="input" type="number" min="0" step="0.01" value="0" placeholder="Acquisition fees"><input id="ecostnotes" class="input" placeholder="Correction note (optional)"><div id="ecosterr" class="error hidden"></div><button class="btn primary" onclick="saveCostEdit(${i})">Update cost basis</button><div class="actionnote">This corrects your current cost basis and keeps an audit record. It does not create a sale or realized gain/loss.</div></div>`}
 async function saveCostEdit(i){let x=trophyBase(i),er=$('ecosterr');if(!x)return;er.classList.add('hidden');let price=+$('ecostprice').value,fees=+$('ecostfees').value||0;if(!(price>=0)||fees<0){er.textContent='Enter a valid purchase price and fees.';er.classList.remove('hidden');return}try{await api('/rest/v1/rpc/update_holding_cost_basis',{method:'POST',body:JSON.stringify({p_holding_id:x.h.id,p_price_per_unit:price,p_fees:fees,p_notes:$('ecostnotes').value||'Cost basis corrected in Card Analyst'})});closeSheet();await load();view('portfolio')}catch(e){er.textContent=e.message;er.classList.remove('hidden')}}
-function saleTrophy(i){let x=trophyBase(i);$('sheet').innerHTML=`<button class="backbtn" onclick="openTrophyInvestment(${i})">← Back</button><h2>Record Sale</h2><div class="card"><input id="sqty" class="input" type="number" value="${x.h.quantity}" placeholder="Quantity"><input id="sprice" class="input" type="number" step=".01" placeholder="Sale price per card"><input id="sfees" class="input" type="number" step=".01" value="0" placeholder="Fees"><button class="btn primary" onclick="saveSale(${i})">Record sale</button></div>`}
-async function saveSale(i){let x=trophyBase(i);await api('/rest/v1/rpc/record_collection_sale',{method:'POST',body:JSON.stringify({p_holding_id:x.h.id,p_quantity:+$('sqty').value,p_price_per_unit:+$('sprice').value,p_fees:+$('sfees').value||0,p_occurred_at:new Date().toISOString(),p_notes:null})});closeSheet();await load()}
+function saleTrophy(i){
+  const x = trophyBase(i);
+
+  if(!x || !x.h){
+    alert('Could not load this holding. Please refresh and try again.');
+    return;
+  }
+
+  const qty = +x.h.quantity || 0;
+
+  $('sheet').innerHTML = `
+    <button class="backbtn" onclick="openTrophyInvestment(${i})">← Back</button>
+    <h2>Record Sale</h2>
+
+    <div class="card">
+      <div class="muted" style="font-size:12px;margin-bottom:10px">
+        Owned: ${qty}
+      </div>
+
+      <input id="sqty" class="input" type="number" min="0.01" max="${qty}" step="1" value="${qty}" placeholder="Quantity">
+
+      <input id="sprice" class="input" type="number" min="0" step="0.01" placeholder="Sale price per card">
+
+      <input id="sfees" class="input" type="number" min="0" step="0.01" value="0" placeholder="Fees">
+
+      <div id="saleerr" class="error hidden"></div>
+
+      <button id="salesubmit" class="btn primary" onclick="saveSale(${i})">
+        Record sale
+      </button>
+    </div>
+  `;
+
+  openSheet();
+}
+
+async function saveSale(i){
+  const x = trophyBase(i);
+  const er = $('saleerr');
+  const btn = $('salesubmit');
+
+  if(!x || !x.h){
+    if(er){
+      er.textContent = 'Could not load this holding.';
+      er.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const owned = +x.h.quantity || 0;
+  const qty = +$('sqty').value;
+  const price = +$('sprice').value;
+  const fees = +$('sfees').value || 0;
+
+  if(er) er.classList.add('hidden');
+
+  if(!(qty > 0)){
+    er.textContent = 'Quantity must be greater than 0.';
+    er.classList.remove('hidden');
+    return;
+  }
+
+  if(qty > owned){
+    er.textContent = `You only own ${owned}.`;
+    er.classList.remove('hidden');
+    return;
+  }
+
+  if(!(price >= 0)){
+    er.textContent = 'Enter a valid sale price.';
+    er.classList.remove('hidden');
+    return;
+  }
+
+  if(fees < 0){
+    er.textContent = 'Fees cannot be negative.';
+    er.classList.remove('hidden');
+    return;
+  }
+
+  try{
+    if(btn){
+      btn.disabled = true;
+      btn.textContent = 'Recording…';
+    }
+
+    await api('/rest/v1/rpc/record_collection_sale',{
+      method:'POST',
+      body:JSON.stringify({
+        p_holding_id:x.h.id,
+        p_quantity:qty,
+        p_price_per_unit:price,
+        p_fees:fees,
+        p_occurred_at:new Date().toISOString(),
+        p_notes:null
+      })
+    });
+
+    closeSheet();
+    await load();
+    view('portfolio');
+
+  }catch(e){
+    console.error('Record sale failed:', e);
+
+    if(er){
+      er.textContent = e?.message || 'Could not record sale.';
+      er.classList.remove('hidden');
+    }
+
+    if(btn){
+      btn.disabled = false;
+      btn.textContent = 'Record sale';
+    }
+  }
+}
 function tradeTrophy(i){let x=trophyBase(i);$('sheet').innerHTML=`<button class="backbtn" onclick="openTrophyInvestment(${i})">← Back</button><h2>Record Trade Out</h2><div class="card"><input id="tqty" class="input" type="number" value="${x.h.quantity}" placeholder="Quantity"><input id="tvalue" class="input" type="number" step=".01" placeholder="Trade value per card"><input id="tfees" class="input" type="number" step=".01" value="0" placeholder="Fees"><input id="tnotes" class="input" placeholder="What did you receive?"><button class="btn primary" onclick="saveTrade(${i})">Record trade</button></div>`}
 async function saveTrade(i){let x=trophyBase(i);await api('/rest/v1/rpc/record_collection_trade_out',{method:'POST',body:JSON.stringify({p_holding_id:x.h.id,p_quantity:+$('tqty').value,p_trade_value_per_unit:+$('tvalue').value,p_fees:+$('tfees').value||0,p_occurred_at:new Date().toISOString(),p_notes:$('tnotes').value||null})});closeSheet();await load()}
 async function removeTrophy(i){let x=trophyBase(i);if(!confirm('Remove this holding as a correction?'))return;await api('/rest/v1/rpc/remove_collection_holding_correction',{method:'POST',body:JSON.stringify({p_holding_id:x.h.id,p_notes:'Removed as correction'})});closeSheet();await load()}
