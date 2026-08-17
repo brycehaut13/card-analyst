@@ -1254,11 +1254,30 @@
   }
 
   async function loadFlips() {
-  const [feedResult, ordersResult, draftsResult] = await Promise.all([
-    safeApi('/rest/v1/golden_goose_flips_feed?select=*&order=flip_score.desc&limit=250'),
-    safeApi('/rest/v1/flip_execution_orders?select=*&order=updated_at.desc&limit=500'),
-    safeApi('/rest/v1/flip_resale_drafts?select=*&order=updated_at.desc&limit=500')
-  ]);
+  let feedResult, ordersResult, draftsResult;
+
+  try {
+    [feedResult, ordersResult, draftsResult] = await Promise.all([
+      safeApi('/rest/v1/golden_goose_flips_feed?select=*&order=flip_score.desc&limit=250'),
+      safeApi('/rest/v1/flip_execution_orders?select=*&order=updated_at.desc&limit=500'),
+      safeApi('/rest/v1/flip_resale_drafts?select=*&order=updated_at.desc&limit=500')
+    ]);
+  } catch (e) {
+    console.error('[Trading Desk] load failed:', e);
+
+    const box = document.getElementById('flipcards');
+
+    if (box) {
+      box.innerHTML = `
+        <div class="empty">
+          Trading Desk data failed to load.<br>
+          <small>${e?.message || 'Unknown API error'}</small>
+        </div>
+      `;
+    }
+
+    return;
+  }
 
   const feed = Array.isArray(feedResult) ? feedResult : [];
   const orders = Array.isArray(ordersResult) ? ordersResult : [];
@@ -1266,15 +1285,12 @@
 
   console.log('[Trading Desk] raw feed rows:', feed.length);
 
-  // Always load the raw feed first so trend enrichment can never
-  // make the Trading Desk appear empty.
   S.tradingDesk.feed = feed;
   S.tradingDesk.orders = orders;
   S.tradingDesk.drafts = drafts;
 
   draw();
 
-  // Trend data is enrichment only. It must never suppress the base feed.
   if (feed.length) {
     try {
       const decorated = await decorateFeedWithTrend(feed);
