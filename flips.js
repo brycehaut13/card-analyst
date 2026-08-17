@@ -58,6 +58,8 @@
     .reasons{margin-top:8px;background:#171f24;border:1px solid #2d3b43;border-radius:10px;padding:7px}
     .reasons b{font-size:8px;display:block;margin-bottom:5px;color:#ffcf98;text-transform:uppercase;letter-spacing:.35px}
     .reasons ul{margin:0;padding:0 0 0 14px;color:#ffcf98;font-size:8px;line-height:1.45}
+    .decisionreason{margin-top:8px;background:#10161a;border:1px solid #223038;border-radius:10px;padding:8px;color:#d9e4df;font-size:9px;line-height:1.5}
+    .decisionreason b{display:block;margin-bottom:4px;font-size:8px;color:#9ed8ff;text-transform:uppercase;letter-spacing:.35px}
 
     .desknotice{grid-column:1/-1;background:#0f1418;border:1px solid var(--l);border-radius:15px;padding:16px;color:var(--m);font-size:11px;line-height:1.45}
 
@@ -210,6 +212,399 @@
     return n == null ? '—' : Math.round(n * 100) + '%';
   };
 
+  const EBAY_SOLD_PROVIDER_NAMES = new Set([
+    'ebay_insights',
+    'ebay_manual'
+  ]);
+
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+  const round = (value, digits = 3) => {
+    const n = num(value);
+    if (n == null) return null;
+    const factor = Math.pow(10, digits);
+    return Math.round(n * factor) / factor;
+  };
+
+  const average = values => {
+    const nums = (values || []).map(num).filter(v => v != null);
+    if (!nums.length) return null;
+    return nums.reduce((sum, value) => sum + value, 0) / nums.length;
+  };
+
+  const median = values => {
+    const nums = (values || []).map(num).filter(v => v != null).sort((a, b) => a - b);
+    if (!nums.length) return null;
+    const mid = Math.floor(nums.length / 2);
+    return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+  };
+
+  const pctDelta = (recent, prior) => {
+    const a = num(recent);
+    const b = num(prior);
+    if (a == null || b == null || Math.abs(b) < 0.01) {
+      return null;
+    }
+    return (a - b) / Math.abs(b);
+  };
+
+  const trendPct = value => {
+    const n = num(value);
+    if (n == null) return '—';
+    const pctValue = (n * 100).toFixed(1) + '%';
+    return n > 0 ? '+' + pctValue : pctValue;
+  };
+
+  const daysAgo = value => {
+    const time = value ? new Date(value).getTime() : NaN;
+    if (!Number.isFinite(time)) return null;
+    return Math.max(0, (Date.now() - time) / 86400000);
+  };
+
+  const safeCatalogId = row => String(
+    row?.catalog_id ||
+    row?.card_id ||
+    row?.catalogCardId ||
+    row?.catalogId ||
+    row?.id ||
+    ''
+  ).trim();
+
+  const chunk = (items, size) => {
+    const out = [];
+    for (let i = 0; i < items.length; i += size) {
+      out.push(items.slice(i, i + size));
+    }
+    return out;
+  };
+
+  const uniqueCatalogIds = feed => [...new Set((feed || []).map(safeCatalogId).filter(Boolean))];
+
+  const quoteFilterValue = value => `"${String(value).replace(/"/g, '')}"`;
+
+  function groupRowsByCatalog(rows) {
+    return (rows || []).reduce((acc, row) => {
+      const id = safeCatalogId(row);
+      if (!id) return acc;
+      (acc[id] = acc[id] || []).push(row);
+      return acc;
+    }, {});
+  }
+
+  function latestDailySnapshots(rows) {
+    const daily = {};
+    (rows || [])
+      .slice()
+      .sort((a, b) => new Date(b.observed_at || 0) - new Date(a.observed_at || 0))
+      .forEach(row => {
+        const time = new Date(row.observed_at || 0);
+        if (!Number.isFinite(time.getTime())) return;
+        const day = time.toISOString().slice(0, 10);
+        if (!daily[day]) {
+          daily[day] = row;
+        }
+      });
+    return Object.values(daily).sort((a, b) => new Date(a.observed_at || 0) - new Date(b.observed_at || 0));
+  }
+
+  function splitHistoryWindow(rows, field, recentDays, maxDays) {
+    const maxAgeMs = maxDays * 86400000;
+    const recentAgeMs = recentDays * 86400000;
+    const filtered = (rows || [])
+      .filter(row => {
+        const age = daysAgo(row?.[field]);
+        return age != null && age * 86400000 <= maxAgeMs;
+      })
+      .sort((a, b) => new Date(a?.[field] || 0) - new Date(b?.[field] || 0));
+
+    if (filtered.length < 2) {
+      return { recent: filtered, prior: [], label: 'available history' };
+    }
+
+    const recent = filtered.filter(row => {
+      const age = daysAgo(row?.[field]);
+      return age != null && age * 86400000 <= recentAgeMs;
+    });
+    const prior = filtered.filter(row => {
+      const age = daysAgo(row?.[field]);
+      return age != null && age * 86400000 > recentAgeMs;
+    });
+
+    if (recent.length && prior.length) {
+      return { recent, prior, label: `${recentDays}d` };
+    }
+
+    const split = Math.floor(filtered.length / 2);
+    return {
+      recent: filtered.slice(split),
+      prior: filtered.slice(0, split),
+      label: 'available history'
+    };
+  }
+
+  function analyzeSnapshotHistory(rows, row) {
+    const dailyRows = latestDailySnapshots(rows);
+    const { recent, prior, label } = splitHistoryWindow(dailyRows, 'observed_at', 7, 21);
+    const recentAsk = median(recent.map(x => x.robust_median_ask));
+    const priorAsk = median(prior.map(x => x.robust_median_ask));
+    const recentP25 = median(recent.map(x => x.p25_ask));
+    const priorP25 = median(prior.map(x => x.p25_ask));
+    const recentSupply = median(recent.map(x => x.robust_listing_count));
+    const priorSupply = median(prior.map(x => x.robust_listing_count));
+
+    const askTrend = round(pctDelta(recentAsk, priorAsk), 4);
+    const p25Trend = round(pctDelta(recentP25, priorP25), 4);
+    const supplyTrend = round(pctDelta(recentSupply, priorSupply), 4);
+
+    const deltas = [];
+    const supplyDeltas = [];
+    for (let i = 1; i < dailyRows.length; i++) {
+      const prevAsk = num(dailyRows[i - 1]?.robust_median_ask ?? dailyRows[i - 1]?.lowest_ask);
+      const nextAsk = num(dailyRows[i]?.robust_median_ask ?? dailyRows[i]?.lowest_ask);
+      const askMove = pctDelta(nextAsk, prevAsk);
+      if (askMove != null) deltas.push(askMove);
+
+      const prevSupply = num(dailyRows[i - 1]?.robust_listing_count);
+      const nextSupply = num(dailyRows[i]?.robust_listing_count);
+      if (prevSupply != null && nextSupply != null) {
+        supplyDeltas.push(nextSupply - prevSupply);
+      }
+    }
+
+    const negativeCuts = deltas.filter(delta => delta < -0.01).map(delta => Math.abs(delta));
+    const positiveSupplyAdds = supplyDeltas.filter(delta => delta > 0);
+    const undercutToFairValue = round(
+      pctDelta(
+        num(row?.ask_price ?? row?.price ?? row?.all_in_buy_cost),
+        num(row?.fair_exit_price ?? row?.max_buy_price)
+      ),
+      4
+    );
+
+    return {
+      askTrendWindow: label,
+      askTrend,
+      p25Trend,
+      supplyTrend,
+      newListingVelocity: round(average(positiveSupplyAdds), 2),
+      priceCutFrequency: round(deltas.length ? negativeCuts.length / deltas.length : null, 4),
+      avgPriceCutSize: round(average(negativeCuts), 4),
+      listingPersistenceDays: round(daysAgo(row?.item_created_at), 1),
+      undercutToFairValue,
+      snapshotCount: dailyRows.length
+    };
+  }
+
+  function effectiveSoldPrice(comp) {
+    const sale = num(comp?.sale_price);
+    const shipping = num(comp?.shipping_price) ?? 0;
+    if (sale == null) return null;
+    return sale + shipping;
+  }
+
+  function analyzeSoldHistory(rows) {
+    const eligibleRows = (rows || [])
+      .filter(row => EBAY_SOLD_PROVIDER_NAMES.has(String(row?.provider_name || '').toLowerCase()))
+      .filter(row => (num(row?.confidence_score) ?? 1) >= 0.98);
+    const { recent, prior } = splitHistoryWindow(eligibleRows, 'sale_date', 21, 60);
+    const recentMedian = median(recent.map(effectiveSoldPrice));
+    const priorMedian = median(prior.map(effectiveSoldPrice));
+    const sortedDesc = eligibleRows
+      .slice()
+      .sort((a, b) => new Date(b.sale_date || 0) - new Date(a.sale_date || 0));
+    const newestSale = sortedDesc[0]?.sale_date || null;
+    return {
+      soldPriceTrend: round(pctDelta(recentMedian, priorMedian), 4),
+      recentMedian,
+      priorMedian,
+      recentCount: recent.length,
+      totalCount: eligibleRows.length,
+      lastSaleDaysAgo: round(daysAgo(newestSale), 1),
+      stale: daysAgo(newestSale) == null || daysAgo(newestSale) > 21
+    };
+  }
+
+  function buildTrendSummary(row, snapshotRows, soldRows) {
+    const snapshot = analyzeSnapshotHistory(snapshotRows, row);
+    const sold = analyzeSoldHistory(soldRows);
+    const hasSnapshotHistory = snapshot.snapshotCount > 0;
+    const hasSoldHistory = sold.totalCount > 0;
+    const observedRecentCompCount = sold.recentCount || (compCount(row) ?? 0);
+
+    const availableSignals = [
+      snapshot.askTrend,
+      snapshot.p25Trend,
+      snapshot.supplyTrend,
+      sold.soldPriceTrend
+    ].filter(v => v != null).length;
+
+    let bearish = 0;
+    let bullish = 0;
+
+    if (sold.soldPriceTrend != null) {
+      if (sold.soldPriceTrend <= -0.08) bearish += 2;
+      else if (sold.soldPriceTrend >= 0.04) bullish += 2;
+    }
+
+    if (snapshot.askTrend != null) {
+      if (snapshot.askTrend <= -0.06) bearish++;
+      else if (snapshot.askTrend >= 0.03) bullish++;
+    }
+
+    if (snapshot.p25Trend != null) {
+      if (snapshot.p25Trend <= -0.08) bearish++;
+      else if (snapshot.p25Trend >= 0.03) bullish++;
+    }
+
+    if (snapshot.supplyTrend != null) {
+      if (snapshot.supplyTrend >= 0.2) bearish++;
+      else if (snapshot.supplyTrend <= -0.1) bullish++;
+    }
+
+    if ((snapshot.priceCutFrequency ?? 0) >= 0.4 && (snapshot.avgPriceCutSize ?? 0) >= 0.05) {
+      bearish++;
+    }
+
+    if (observedRecentCompCount >= 3 && !sold.stale) bullish++;
+    if (observedRecentCompCount < 3 || (hasSoldHistory && sold.stale)) bearish++;
+
+    let regime = 'INSUFFICIENT DATA';
+    if (availableSignals >= 2 || observedRecentCompCount >= 3) {
+      if (bearish >= 2) regime = 'FALLING';
+      else if (bullish >= 2 && bearish === 0) regime = 'RISING';
+      else regime = 'STABLE';
+    }
+
+    let confidence = 0.2;
+    confidence += Math.min(0.28, observedRecentCompCount * 0.08);
+    confidence += Math.min(0.24, snapshot.snapshotCount * 0.04);
+    confidence += availableSignals * 0.08;
+    if (regime === 'INSUFFICIENT DATA') confidence = Math.min(confidence, 0.45);
+    confidence = round(clamp(confidence, 0.05, 0.98), 2);
+
+    let score = 0;
+    score += (sold.soldPriceTrend ?? 0) * 45;
+    score += (snapshot.askTrend ?? 0) * 20;
+    score += (snapshot.p25Trend ?? 0) * 15;
+    score -= (snapshot.supplyTrend ?? 0) * 20;
+    score -= (snapshot.priceCutFrequency ?? 0) * 10;
+    if (observedRecentCompCount < 3) score -= 12;
+    if (hasSoldHistory && sold.stale) score -= 10;
+    score = Math.round(clamp(score * 100, -100, 100));
+
+    const blockers = [];
+    const exact = num(row?.exact_match_confidence) ?? 0;
+    const market = num(row?.market_confidence) ?? 0;
+    const allIn = num(row?.all_in_buy_cost);
+    const maxBuy = num(row?.max_buy_price);
+    const expectedProfit = num(row?.expected_profit);
+    const expectedRoi = num(row?.expected_roi);
+
+    if (exact < 0.98) blockers.push('exact identity confidence below 98%');
+    if (observedRecentCompCount < 3) blockers.push('fewer than 3 recent verified raw eBay sales');
+    if (hasSoldHistory && sold.stale) blockers.push('sold comps are stale');
+    if (hasSoldHistory && (sold.soldPriceTrend ?? 0) <= -0.08) blockers.push('sold prices declining materially');
+    if (hasSnapshotHistory && ((snapshot.askTrend ?? 0) <= -0.06 || (snapshot.p25Trend ?? 0) <= -0.08)) blockers.push('median ask falling rapidly');
+    if (hasSnapshotHistory && ((snapshot.supplyTrend ?? 0) >= 0.2 || (snapshot.newListingVelocity ?? 0) >= 1.5)) blockers.push('supply expanding rapidly');
+    if (market < 0.65) blockers.push('market confidence below gate');
+    if (allIn != null && maxBuy != null && allIn > maxBuy) blockers.push('all-in buy cost exceeds max buy');
+    if (expectedProfit != null && expectedProfit <= 0) blockers.push('expected profit is not positive');
+    if (expectedRoi != null && expectedRoi <= 0) blockers.push('expected ROI is not positive');
+    if (regime === 'FALLING' && hasSnapshotHistory && (snapshot.undercutToFairValue ?? 0) < -0.08) {
+      blockers.push('below-fair listing is likely stale fair value in a falling market');
+    }
+
+    const uniqueBlockers = [...new Set(blockers)];
+    const positiveReasons = [];
+    if (exact >= 0.98) positiveReasons.push('exact identity ≥ 98%');
+    if (observedRecentCompCount >= 3 && !sold.stale) positiveReasons.push('3+ recent verified raw eBay sales');
+    if (market >= 0.65) positiveReasons.push('market confidence gate passed');
+    if (regime === 'RISING') positiveReasons.push('sold prices improving');
+    if (regime === 'STABLE') positiveReasons.push('sold prices stable');
+    if ((snapshot.supplyTrend ?? 1) <= 0.05) positiveReasons.push('supply stable/falling');
+    if ((snapshot.undercutToFairValue ?? 0) <= -0.08) positiveReasons.push('listing undercuts current fair value');
+    if (allIn != null && maxBuy != null && allIn <= maxBuy && (expectedProfit ?? 0) > 0 && (expectedRoi ?? 0) > 0) {
+      positiveReasons.push('max-buy, profit and ROI gates passed');
+    }
+
+    return {
+      trend_score: score,
+      trend_confidence: confidence,
+      market_regime: regime,
+      ask_trend_window: snapshot.askTrendWindow,
+      ask_trend_pct: snapshot.askTrend,
+      p25_ask_trend_pct: snapshot.p25Trend,
+      sold_price_trend_pct: sold.soldPriceTrend,
+      supply_trend_pct: snapshot.supplyTrend,
+      new_listing_velocity: snapshot.newListingVelocity,
+      price_cut_frequency: snapshot.priceCutFrequency,
+      avg_price_cut_size: snapshot.avgPriceCutSize,
+      listing_persistence_days: snapshot.listingPersistenceDays,
+      sold_comp_days_since_most_recent: sold.lastSaleDaysAgo,
+      trend_recent_sold_comp_count: sold.recentCount,
+      trend_total_sold_comp_count: sold.totalCount,
+      undercut_to_fair_value_pct: snapshot.undercutToFairValue,
+      trend_blockers: uniqueBlockers,
+      decision_reason:
+        uniqueBlockers.length
+          ? `PASS — ${uniqueBlockers.slice(0, 3).join('; ')}`
+          : `BUY — ${positiveReasons.slice(0, 5).join('; ')}`
+    };
+  }
+
+  async function fetchTrendRows(path, ids, chunkSize = 30) {
+    if (!ids.length) return [];
+    const chunks = chunk(ids, chunkSize);
+    const responses = await Promise.all(chunks.map(group => {
+      const filter = group.map(quoteFilterValue).join(',');
+      return safeApi(`${path}&catalog_id=in.(${encodeURIComponent(filter)})`);
+    }));
+    return responses.flat().filter(Boolean);
+  }
+
+  async function decorateFeedWithTrend(feed) {
+    const ids = uniqueCatalogIds(feed);
+    if (!ids.length) {
+      return (feed || []).map(row => ({
+        ...row,
+        market_regime: 'INSUFFICIENT DATA',
+        trend_confidence: 0.05,
+        trend_score: 0,
+        trend_blockers: [],
+        decision_reason: ''
+      }));
+    }
+
+    const snapshotSince = encodeURIComponent(new Date(Date.now() - (21 * 86400000)).toISOString());
+    const soldSince = encodeURIComponent(new Date(Date.now() - (60 * 86400000)).toISOString());
+    const providerFilter = encodeURIComponent('"ebay_insights","ebay_manual"');
+
+    const [snapshotRows, soldRows] = await Promise.all([
+      fetchTrendRows(
+        `/rest/v1/ebay_market_snapshots?select=catalog_id,observed_at,robust_median_ask,p25_ask,robust_listing_count,lowest_ask&observed_at=gte.${snapshotSince}&order=observed_at.desc&limit=4000`,
+        ids,
+        25
+      ),
+      fetchTrendRows(
+        `/rest/v1/golden_goose_market_comps?select=catalog_id,provider_name,sale_price,shipping_price,sale_date,confidence_score&sale_date=gte.${soldSince}&provider_name=in.(${providerFilter})&confidence_score=gte.0.98&order=sale_date.desc&limit=4000`,
+        ids,
+        25
+      )
+    ]);
+
+    const snapshotsByCatalog = groupRowsByCatalog(snapshotRows);
+    const soldByCatalog = groupRowsByCatalog(soldRows);
+
+    return (feed || []).map(row => ({
+      ...row,
+      ...buildTrendSummary(
+        row,
+        snapshotsByCatalog[safeCatalogId(row)] || [],
+        soldByCatalog[safeCatalogId(row)] || []
+      )
+    }));
+  }
+
   const normState = v => {
     const s = String(v || '').trim().toUpperCase().replace(/_/g, ' ');
     return STATES.includes(s) ? s : 'SIGNAL';
@@ -253,6 +648,7 @@
     safeList(row.block_reasons).forEach(x => blockers.push(String(x)));
     safeList(row.rejection_reasons).forEach(x => blockers.push(String(x)));
     safeList(row.quality_flags).forEach(x => blockers.push(String(x).replace(/_/g, ' ')));
+    safeList(row.trend_blockers).forEach(x => blockers.push(String(x)));
 
     if (row.is_graded) {
       blockers.push('graded listing blocked for raw flip flow');
@@ -664,8 +1060,19 @@
               <div class="metric"><small>Exact-match confidence</small><b>${confidencePct(x.exact_match_confidence)}</b></div>
               <div class="metric"><small>Market confidence</small><b>${confidencePct(x.market_confidence)}</b></div>
               <div class="metric"><small>Listing freshness</small><b>${esc(rowFreshness(x))}</b></div>
+              <div class="metric"><small>Market regime</small><b>${esc(x.market_regime || 'INSUFFICIENT DATA')}</b></div>
+              <div class="metric"><small>Trend score</small><b class="${(num(x.trend_score) || 0) >= 0 ? 'pos' : 'neg'}">${num(x.trend_score) == null ? '—' : Math.round(num(x.trend_score))}</b></div>
+              <div class="metric"><small>Trend confidence</small><b>${confidencePct(x.trend_confidence)}</b></div>
+              <div class="metric"><small>Ask trend (${esc(x.ask_trend_window || '7d')})</small><b class="${(num(x.ask_trend_pct) || 0) > 0 ? 'pos' : (num(x.ask_trend_pct) || 0) < 0 ? 'neg' : ''}">${trendPct(x.ask_trend_pct)}</b></div>
+              <div class="metric"><small>Sold-price trend</small><b class="${(num(x.sold_price_trend_pct) || 0) > 0 ? 'pos' : (num(x.sold_price_trend_pct) || 0) < 0 ? 'neg' : ''}">${trendPct(x.sold_price_trend_pct)}</b></div>
+              <div class="metric"><small>Supply trend</small><b class="${(num(x.supply_trend_pct) || 0) <= 0 ? 'pos' : 'neg'}">${trendPct(x.supply_trend_pct)}</b></div>
             </div>
           </div>
+        </div>
+
+        <div class="decisionreason">
+          <b>Reason for ${eligible ? 'BUY' : 'PASS'}</b>
+          ${esc(x.decision_reason || (eligible ? 'BUY — existing flip and market gates passed.' : 'PASS — existing flip or market gates failed.'))}
         </div>
 
         ${
@@ -840,7 +1247,7 @@
       safeApi('/rest/v1/flip_resale_drafts?select=*&order=updated_at.desc&limit=500')
     ]);
 
-    S.tradingDesk.feed = Array.isArray(feed) ? feed : [];
+    S.tradingDesk.feed = await decorateFeedWithTrend(Array.isArray(feed) ? feed : []);
     S.tradingDesk.orders = Array.isArray(orders) ? orders : [];
     S.tradingDesk.drafts = Array.isArray(drafts) ? drafts : [];
 
