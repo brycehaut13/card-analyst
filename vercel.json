@@ -1,11 +1,11 @@
 {
   "functions": {
-    "api/ebay/account-deletion.js": {},
-    "api/ebay/collect.js": {},
-    "api/ebay/search.js": {},
-    "api/ocdb.js": {},
-    "api/sold-comps/collect.js": {},
-    "api/sold-comps/import.js": {},
-    "api/sold-comps/status.js": {}
+    "api/ebay/account-deletion.js": { "maxDuration": 10 },
+    "api/ebay/collect.js": { "maxDuration": 60 },
+    "api/ebay/search.js": { "maxDuration": 10 },
+    "api/ocdb.js": { "maxDuration": 10 },
+    "api/sold-comps/collect.js": { "maxDuration": 60 },
+    "api/sold-comps/import.js": { "maxDuration": 30 },
+    "api/sold-comps/status.js": { "maxDuration": 10 }
   }
 }
