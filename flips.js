@@ -547,8 +547,8 @@
       trend_blockers: uniqueBlockers,
       decision_reason:
         uniqueBlockers.length
-          ? `PASS — ${uniqueBlockers.slice(0, 3).join('; ')}`
-          : `BUY — ${positiveReasons.slice(0, 5).join('; ')}`
+          ? uniqueBlockers.slice(0, 3).join('; ')
+          : positiveReasons.slice(0, 5).join('; ')
     };
   }
 
@@ -1072,7 +1072,7 @@
 
         <div class="decisionreason">
           <b>Reason for ${eligible ? 'BUY' : 'PASS'}</b>
-          ${esc(x.decision_reason || (eligible ? 'BUY — existing flip and market gates passed.' : 'PASS — existing flip or market gates failed.'))}
+          ${esc(x.decision_reason || (eligible ? 'existing flip and market gates passed.' : 'existing flip or market gates failed.'))}
         </div>
 
         ${

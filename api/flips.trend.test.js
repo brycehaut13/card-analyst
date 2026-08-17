@@ -182,9 +182,13 @@ function buildTrendSummary(row, snapshotRows, soldRows) {
   if (hasSnapshotHistory && ((snapshot.askTrend ?? 0) <= -0.06 || (snapshot.p25Trend ?? 0) <= -0.08)) blockers.push('median ask falling rapidly');
   if (hasSnapshotHistory && ((snapshot.supplyTrend ?? 0) >= 0.2 || (snapshot.newListingVelocity ?? 0) >= 1.5)) blockers.push('supply expanding rapidly');
   if ((num(row.market_confidence) ?? 0) < 0.65) blockers.push('market confidence below gate');
-  if ((num(row.all_in_buy_cost) ?? 0) > (num(row.max_buy_price) ?? Infinity)) blockers.push('all-in buy cost exceeds max buy');
-  if ((num(row.expected_profit) ?? 0) <= 0) blockers.push('expected profit is not positive');
-  if ((num(row.expected_roi) ?? 0) <= 0) blockers.push('expected ROI is not positive');
+  const allIn = num(row.all_in_buy_cost);
+  const maxBuy = num(row.max_buy_price);
+  const expectedProfit = num(row.expected_profit);
+  const expectedRoi = num(row.expected_roi);
+  if (allIn != null && maxBuy != null && allIn > maxBuy) blockers.push('all-in buy cost exceeds max buy');
+  if (expectedProfit != null && expectedProfit <= 0) blockers.push('expected profit is not positive');
+  if (expectedRoi != null && expectedRoi <= 0) blockers.push('expected ROI is not positive');
   if (regime === 'FALLING' && hasSnapshotHistory && (snapshot.undercutToFairValue ?? 0) < -0.08) {
     blockers.push('below-fair listing is likely stale fair value in a falling market');
   }
