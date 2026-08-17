@@ -1241,18 +1241,49 @@
   }
 
   async function loadFlips() {
-    const [feed, orders, drafts] = await Promise.all([
-      safeApi('/rest/v1/golden_goose_flips_feed?select=*&order=flip_score.desc&limit=250'),
-      safeApi('/rest/v1/flip_execution_orders?select=*&order=updated_at.desc&limit=500'),
-      safeApi('/rest/v1/flip_resale_drafts?select=*&order=updated_at.desc&limit=500')
-    ]);
+  const [feedResult, ordersResult, draftsResult] = await Promise.all([
+    safeApi('/rest/v1/golden_goose_flips_feed?select=*&order=flip_score.desc&limit=250'),
+    safeApi('/rest/v1/flip_execution_orders?select=*&order=updated_at.desc&limit=500'),
+    safeApi('/rest/v1/flip_resale_drafts?select=*&order=updated_at.desc&limit=500')
+  ]);
 
-    S.tradingDesk.feed = await decorateFeedWithTrend(Array.isArray(feed) ? feed : []);
-    S.tradingDesk.orders = Array.isArray(orders) ? orders : [];
-    S.tradingDesk.drafts = Array.isArray(drafts) ? drafts : [];
+  const feed = Array.isArray(feedResult) ? feedResult : [];
+  const orders = Array.isArray(ordersResult) ? ordersResult : [];
+  const drafts = Array.isArray(draftsResult) ? draftsResult : [];
 
-    draw();
+  console.log('[Trading Desk] raw feed rows:', feed.length);
+
+  // Always load the raw feed first so trend enrichment can never
+  // make the Trading Desk appear empty.
+  S.tradingDesk.feed = feed;
+  S.tradingDesk.orders = orders;
+  S.tradingDesk.drafts = drafts;
+
+  draw();
+
+  // Trend data is enrichment only. It must never suppress the base feed.
+  if (feed.length) {
+    try {
+      const decorated = await decorateFeedWithTrend(feed);
+
+      if (Array.isArray(decorated) && decorated.length) {
+        S.tradingDesk.feed = decorated;
+      }
+    } catch (error) {
+      console.warn(
+        '[Trading Desk] trend enrichment failed; using raw feed',
+        error
+      );
+    }
   }
+
+  console.log(
+    '[Trading Desk] rendered feed rows:',
+    S.tradingDesk.feed.length
+  );
+
+  draw();
+}
 
   window.loadFlips = loadFlips;
 })();
