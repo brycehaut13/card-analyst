@@ -753,13 +753,26 @@
   }
 
   async function safeApi(path) {
-    try {
-      return (await api(path)) || [];
-    } catch (e) {
-      console.warn('Trading Desk source unavailable', path, e);
-      return [];
+  try {
+    const result = await api(path);
+
+    if (Array.isArray(result)) {
+      console.log('[Trading Desk] loaded', result.length, 'rows from', path);
+      return result;
     }
+
+    console.warn('[Trading Desk] unexpected response from', path, result);
+    return [];
+  } catch (e) {
+    console.error(
+      '[Trading Desk] API FAILED:',
+      path,
+      e?.message || e
+    );
+
+    throw e;
   }
+}
 
   async function safeRpc(name, payload) {
     try {
