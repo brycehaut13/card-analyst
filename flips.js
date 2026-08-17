@@ -1254,24 +1254,32 @@
   }
 
   async function loadFlips() {
-  let feedResult, ordersResult, draftsResult;
+  const root = document.getElementById('flipcontent');
+
+  if (root) {
+    root.innerHTML = '<div class="empty">Loading Trading Desk…</div>';
+  }
+
+  let feed = [];
+  let orders = [];
+  let drafts = [];
 
   try {
-    [feedResult, ordersResult, draftsResult] = await Promise.all([
-      safeApi('/rest/v1/golden_goose_flips_feed?select=*&order=flip_score.desc&limit=250'),
-      safeApi('/rest/v1/flip_execution_orders?select=*&order=updated_at.desc&limit=500'),
-      safeApi('/rest/v1/flip_resale_drafts?select=*&order=updated_at.desc&limit=500')
-    ]);
+    const feedResult = await api(
+      '/rest/v1/golden_goose_flips_feed?select=*&order=flip_score.desc&limit=250'
+    );
+
+    feed = Array.isArray(feedResult) ? feedResult : [];
+
+    console.log('[Trading Desk] feed rows:', feed.length);
   } catch (e) {
-    console.error('[Trading Desk] load failed:', e);
+    console.error('[Trading Desk] FEED FAILED:', e);
 
-    const box = document.getElementById('flipcards');
-
-    if (box) {
-      box.innerHTML = `
-        <div class="empty">
-          Trading Desk data failed to load.<br>
-          <small>${e?.message || 'Unknown API error'}</small>
+    if (root) {
+      root.innerHTML = `
+        <div class="desknotice">
+          Trading Desk feed failed to load.<br><br>
+          <b>${esc(e?.message || 'Unknown feed error')}</b>
         </div>
       `;
     }
@@ -1279,11 +1287,31 @@
     return;
   }
 
-  const feed = Array.isArray(feedResult) ? feedResult : [];
-  const orders = Array.isArray(ordersResult) ? ordersResult : [];
-  const drafts = Array.isArray(draftsResult) ? draftsResult : [];
+  try {
+    const ordersResult = await api(
+      '/rest/v1/flip_execution_orders?select=*&order=updated_at.desc&limit=500'
+    );
 
-  console.log('[Trading Desk] raw feed rows:', feed.length);
+    orders = Array.isArray(ordersResult) ? ordersResult : [];
+  } catch (e) {
+    console.warn(
+      '[Trading Desk] orders unavailable; continuing with feed',
+      e
+    );
+  }
+
+  try {
+    const draftsResult = await api(
+      '/rest/v1/flip_resale_drafts?select=*&order=updated_at.desc&limit=500'
+    );
+
+    drafts = Array.isArray(draftsResult) ? draftsResult : [];
+  } catch (e) {
+    console.warn(
+      '[Trading Desk] drafts unavailable; continuing with feed',
+      e
+    );
+  }
 
   S.tradingDesk.feed = feed;
   S.tradingDesk.orders = orders;
@@ -1291,28 +1319,23 @@
 
   draw();
 
-  if (feed.length) {
-    try {
-      const decorated = await decorateFeedWithTrend(feed);
-
-      if (Array.isArray(decorated) && decorated.length) {
-        S.tradingDesk.feed = decorated;
-      }
-    } catch (error) {
-      console.warn(
-        '[Trading Desk] trend enrichment failed; using raw feed',
-        error
-      );
-    }
+  if (!feed.length) {
+    return;
   }
 
-  console.log(
-    '[Trading Desk] rendered feed rows:',
-    S.tradingDesk.feed.length
-  );
+  try {
+    const decorated = await decorateFeedWithTrend(feed);
 
-  draw();
+    if (Array.isArray(decorated) && decorated.length) {
+      S.tradingDesk.feed = decorated;
+      draw();
+    }
+  } catch (e) {
+    console.warn(
+      '[Trading Desk] trend enrichment unavailable; raw feed retained',
+      e
+    );
+  }
 }
-
   window.loadFlips = loadFlips;
 })();
