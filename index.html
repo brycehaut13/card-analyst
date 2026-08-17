@@ -171,17 +171,83 @@ function saleTrophy(i){
 }
 
 async function saveSale(i){
-  const x = trophyBase(i);
+  const h = S.h && S.h[i];
   const er = $('saleerr');
-  const btn = $('salesubmit');
 
-  if(!x || !x.h){
-    if(er){
-      er.textContent = 'Could not load this holding.';
-      er.classList.remove('hidden');
-    }
+  if(!h){
+    alert('Could not find the holding to sell.');
     return;
   }
+
+  const qty = Number($('sqty').value);
+  const price = Number($('sprice').value);
+  const fees = Number($('sfees').value || 0);
+
+  if(!(qty > 0)){
+    alert('Enter a valid quantity.');
+    return;
+  }
+
+  if(qty > Number(h.quantity)){
+    alert('You cannot sell more cards than you own.');
+    return;
+  }
+
+  if(!Number.isFinite(price) || price < 0){
+    alert('Enter a valid sale price.');
+    return;
+  }
+
+  if(!Number.isFinite(fees) || fees < 0){
+    alert('Enter valid fees.');
+    return;
+  }
+
+  try{
+    const btn = document.querySelector('#sheet .btn.primary');
+
+    if(btn){
+      btn.disabled = true;
+      btn.textContent = 'Recording…';
+    }
+
+    const result = await api('/rest/v1/rpc/record_collection_sale',{
+      method:'POST',
+      body:JSON.stringify({
+        p_holding_id:h.id,
+        p_quantity:qty,
+        p_price_per_unit:price,
+        p_fees:fees,
+        p_occurred_at:new Date().toISOString(),
+        p_notes:null
+      })
+    });
+
+    console.log('Sale recorded:', result);
+
+    closeSheet();
+    await load();
+    view('portfolio');
+
+  }catch(e){
+    console.error('SALE ERROR', e);
+
+    if(er){
+      er.textContent = e && e.message
+        ? e.message
+        : 'Sale could not be recorded.';
+      er.classList.remove('hidden');
+    }else{
+      alert(e && e.message ? e.message : 'Sale could not be recorded.');
+    }
+
+    const btn = document.querySelector('#sheet .btn.primary');
+    if(btn){
+      btn.disabled = false;
+      btn.textContent = 'Record sale';
+    }
+  }
+}
 
   const owned = +x.h.quantity || 0;
   const qty = +$('sqty').value;
