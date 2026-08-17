@@ -20,7 +20,7 @@ module.exports = async function handler(req, res) {
   if (!cronSecret) {
     return res.status(500).json({ error: 'CRON_SECRET is not configured' });
   }
-  if (req.headers.authorization !== `******) {
+  if (req.headers.authorization !== 'Bearer ' + cronSecret) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
