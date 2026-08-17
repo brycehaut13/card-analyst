@@ -118,33 +118,50 @@ async function saveEdit(i){let x=trophyBase(i);await api('/rest/v1/rpc/update_co
 function editCostTrophy(i){let x=trophyBase(i);if(!x)return;let qty=+x.h.quantity||0,total=+x.h.cost_basis||0,per=qty?total/qty:0;$('sheet').innerHTML=`<button class="backbtn" onclick="openTrophyInvestment(${i})">← Back</button><div class="muted">COST BASIS CORRECTION</div><h2>${x.c.player_name||'Card'}</h2><div class="card"><div class="muted" style="font-size:12px;line-height:1.45">Owned: ${qty} · Current total cost basis: ${M(total)}</div><input id="ecostprice" class="input" type="number" min="0" step="0.01" value="${per.toFixed(2)}" placeholder="Purchase price per card"><input id="ecostfees" class="input" type="number" min="0" step="0.01" value="0" placeholder="Acquisition fees"><input id="ecostnotes" class="input" placeholder="Correction note (optional)"><div id="ecosterr" class="error hidden"></div><button class="btn primary" onclick="saveCostEdit(${i})">Update cost basis</button><div class="actionnote">This corrects your current cost basis and keeps an audit record. It does not create a sale or realized gain/loss.</div></div>`}
 async function saveCostEdit(i){let x=trophyBase(i),er=$('ecosterr');if(!x)return;er.classList.add('hidden');let price=+$('ecostprice').value,fees=+$('ecostfees').value||0;if(!(price>=0)||fees<0){er.textContent='Enter a valid purchase price and fees.';er.classList.remove('hidden');return}try{await api('/rest/v1/rpc/update_holding_cost_basis',{method:'POST',body:JSON.stringify({p_holding_id:x.h.id,p_price_per_unit:price,p_fees:fees,p_notes:$('ecostnotes').value||'Cost basis corrected in Card Analyst'})});closeSheet();await load();view('portfolio')}catch(e){er.textContent=e.message;er.classList.remove('hidden')}}
 function saleTrophy(i){
-  const x = trophyBase(i);
+  const h = S.h && S.h[i];
 
-  if(!x || !x.h){
-    alert('Could not load this holding. Please refresh and try again.');
+  if(!h){
+    alert('Sale button clicked, but holding data was not found for index ' + i);
     return;
   }
 
-  const qty = +x.h.quantity || 0;
-
   $('sheet').innerHTML = `
-    <button class="backbtn" onclick="openTrophyInvestment(${i})">← Back</button>
+    <button class="backbtn" onclick="closeSheet()">← Back</button>
     <h2>Record Sale</h2>
 
     <div class="card">
-      <div class="muted" style="font-size:12px;margin-bottom:10px">
-        Owned: ${qty}
+      <div class="muted" style="margin-bottom:10px">
+        Sale form loaded.
       </div>
 
-      <input id="sqty" class="input" type="number" min="0.01" max="${qty}" step="1" value="${qty}" placeholder="Quantity">
+      <input
+        id="sqty"
+        class="input"
+        type="number"
+        value="${+h.quantity || 1}"
+        placeholder="Quantity"
+      >
 
-      <input id="sprice" class="input" type="number" min="0" step="0.01" placeholder="Sale price per card">
+      <input
+        id="sprice"
+        class="input"
+        type="number"
+        step="0.01"
+        placeholder="Sale price per card"
+      >
 
-      <input id="sfees" class="input" type="number" min="0" step="0.01" value="0" placeholder="Fees">
+      <input
+        id="sfees"
+        class="input"
+        type="number"
+        step="0.01"
+        value="0"
+        placeholder="Fees"
+      >
 
       <div id="saleerr" class="error hidden"></div>
 
-      <button id="salesubmit" class="btn primary" onclick="saveSale(${i})">
+      <button class="btn primary" onclick="saveSale(${i})">
         Record sale
       </button>
     </div>
