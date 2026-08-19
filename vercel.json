@@ -1,28 +1,26 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null,
-  "outputDirectory": "public",
   "functions": {
-    "api/ebay/account-deletion.js": {
-      "maxDuration": 10
+    "api/ebay/account-deletion.js": { "maxDuration": 10 },
+    "api/ebay/collect.js": { "maxDuration": 60 },
+    "api/ebay/search.js": { "maxDuration": 10 },
+    "api/ocdb.js": { "maxDuration": 10 },
+    "api/sold-comps/collect.js": { "maxDuration": 60 },
+    "api/sold-comps/import.js": { "maxDuration": 30 },
+    "api/sold-comps/status.js": { "maxDuration": 10 }
+  },
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/public/index.html"
     },
-    "api/ebay/collect.js": {
-      "maxDuration": 60
+    {
+      "source": "/dashboard.js",
+      "destination": "/public/dashboard.js"
     },
-    "api/ebay/search.js": {
-      "maxDuration": 10
-    },
-    "api/ocdb.js": {
-      "maxDuration": 10
-    },
-    "api/sold-comps/collect.js": {
-      "maxDuration": 60
-    },
-    "api/sold-comps/import.js": {
-      "maxDuration": 30
-    },
-    "api/sold-comps/status.js": {
-      "maxDuration": 10
+    {
+      "source": "/flips.js",
+      "destination": "/public/flips.js"
     }
-  }
+  ]
 }
