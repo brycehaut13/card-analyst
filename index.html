@@ -43,7 +43,7 @@
 .trophyjump{font-size:11px;color:#a8efbf;font-weight:850}
 @media(min-width:480px){.trophycard{flex-basis:210px}}
 
-.trophycard{cursor:pointer}.investhero{margin:8px 0 4px}.investvalue{font-size:38px;font-weight:900;letter-spacing:-1.5px}.investreturn{font-size:14px;font-weight:850;margin-top:3px}.investgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}.investstat{background:#0e1112;border:1px solid var(--l);border-radius:15px;padding:12px}.investstat small{display:block;color:var(--m);font-size:10px;margin-bottom:5px}.investstat b{font-size:17px}.saleitem{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--l)}.saleitem:last-child{border-bottom:0}.salegrade{display:inline-block;border:1px solid #34403a;border-radius:999px;padding:4px 7px;font-size:9px;font-weight:900;color:#c9d5cf}.saledate,.salesource{color:var(--m);font-size:10px;margin-top:4px}.saleprice{font-size:16px;font-weight:900;text-align:right}.historyempty{text-align:center;padding:42px 10px;color:var(--m);font-size:12px;line-height:1.45}.actiongrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.actionbtn{border:1px solid var(--l);background:#15191b;color:#fff;border-radius:13px;padding:12px;font-weight:850}.actionbtn.danger{color:#ffaaaF;border-color:#4b292d}.trange{display:flex;gap:5px;margin-top:10px}.trange button{border:1px solid var(--l);background:#0d1011;color:#77817d;border-radius:999px;padding:6px 10px;font-size:10px;font-weight:850}.trange button.active{background:#e9f7ee;color:#07120a}</style></head><body><div class="app"><div id="auth" class="auth"><div class="brand">Card Analyst</div><form id="login" class="card"><div class="muted">PRIVATE PORTFOLIO</div><h1>Welcome back</h1><input id="email" class="input" type="email" placeholder="Email" autocapitalize="none" autocomplete="email" required><input id="password" class="input" type="password" placeholder="Password" autocomplete="current-password" required><div id="err" class="error hidden"></div><button id="signin" class="btn primary">Sign in</button><button id="signup" type="button" class="btn secondary">Create account</button><div id="signupmsg" class="muted" style="font-size:12px;margin-top:10px;line-height:1.4"></div><div class="build">BUILD CA-1327 · LOGIN TIMEOUT FIX</div></form></div><div id="main" class="hidden"><div class="brand">Card Analyst</div><section id="portfolio">
+.trophycard{cursor:pointer}.investhero{margin:8px 0 4px}.investvalue{font-size:38px;font-weight:900;letter-spacing:-1.5px}.investreturn{font-size:14px;font-weight:850;margin-top:3px}.investgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}.investstat{background:#0e1112;border:1px solid var(--l);border-radius:15px;padding:12px}.investstat small{display:block;color:var(--m);font-size:10px;margin-bottom:5px}.investstat b{font-size:17px}.saleitem{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--l)}.saleitem:last-child{border-bottom:0}.salegrade{display:inline-block;border:1px solid #34403a;border-radius:999px;padding:4px 7px;font-size:9px;font-weight:900;color:#c9d5cf}.saledate,.salesource{color:var(--m);font-size:10px;margin-top:4px}.saleprice{font-size:16px;font-weight:900;text-align:right}.historyempty{text-align:center;padding:42px 10px;color:var(--m);font-size:12px;line-height:1.45}.actiongrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.actionbtn{border:1px solid var(--l);background:#15191b;color:#fff;border-radius:13px;padding:12px;font-weight:850}.actionbtn.danger{color:#ffaaaF;border-color:#4b292d}.trange{display:flex;gap:5px;margin-top:10px}.trange button{border:1px solid var(--l);background:#0d1011;color:#77817d;border-radius:999px;padding:6px 10px;font-size:10px;font-weight:850}.trange button.active{background:#e9f7ee;color:#07120a}</style></head><body><div class="app"><div id="auth" class="auth"><div class="brand">Card Analyst</div><form id="login" class="card"><div class="muted">PRIVATE PORTFOLIO</div><h1>Welcome back</h1><input id="email" class="input" type="email" placeholder="Email" autocapitalize="none" autocomplete="email" required><input id="password" class="input" type="password" placeholder="Password" autocomplete="current-password" required><div id="err" class="error hidden"></div><button id="signin" class="btn primary">Sign in</button><button id="signup" type="button" class="btn secondary">Create account</button><div id="signupmsg" class="muted" style="font-size:12px;margin-top:10px;line-height:1.4"></div><div class="build">BUILD CA-1328 · EBAY OAUTH</div></form></div><div id="main" class="hidden"><div class="brand">Card Analyst</div><section id="portfolio">
 <div class="portfoliohero">
 <div class="muted">PORTFOLIO VALUE</div>
 <div id="value" class="hero">—</div>
@@ -65,6 +65,12 @@
 <div class="trophytitle"><div><h2>Trophy Room</h2><span id="trophycount">Your collection</span></div><div class="trophycontrols"><button id="trophyleft" class="trophyarrow" aria-label="Previous card">‹</button><button id="trophyright" class="trophyarrow" aria-label="Next card">›</button></div></div>
 <div class="trophywrap"><div id="holdings" class="trophyrail"></div></div>
 <div id="trophylist" class="trophylist"></div>
+<div id="ebayconnectcard" class="card" style="margin-top:18px">
+  <div class="muted" style="font-size:11px;font-weight:800">EBAY CONNECTION</div>
+  <div id="ebaystatus" style="font-weight:850;margin-top:6px">Checking connection…</div>
+  <div id="ebaydetail" class="muted" style="font-size:12px;line-height:1.4;margin-top:5px">Connect your eBay account securely through eBay OAuth.</div>
+  <button id="ebayconnect" type="button" class="btn secondary">Connect eBay</button>
+</div>
 </section><section id="add" class="hidden"><div class="card"><div class="muted">COLLECTION</div><div class="sectiontitle">Find a card</div><div class="sectioncopy">Search the full archive by card or player name. Open advanced filters only when you need to narrow it down.</div><div class="searchhero"><input id="addq" class="input" placeholder="Search player, set, parallel…"></div><details id="advancedfilters" class="advbox"><summary>Advanced filters</summary><div class="advinner"><div class="filters"><select id="addsport" class="input"><option value="">All sports</option><option value="basketball">Basketball</option><option value="baseball">Baseball</option><option value="football">Football</option></select><input id="addyear" class="input" placeholder="Year / season"><input id="addset" class="input" placeholder="Set contains…"><input id="addparallel" class="input" placeholder="Parallel / color"><input id="addserial" class="input" type="number" placeholder="Serial /99"><select id="addauto" class="input"><option value="">All card types</option><option value="true">Autographs only</option><option value="false">Non-autographs</option></select><select id="addrookie" class="input"><option value="">Rookie + veteran</option><option value="true">Rookies only</option><option value="false">Veterans only</option></select></div></div></details><div id="addr" class="resultspace"></div><button id="manualadd" type="button" class="btn secondary">Can’t find it? Add manually</button></div><div class="markethead"><h2>Market pulse</h2><span>Real tracked data</span></div><div id="marketpulse"><div class="marketpanel"><div class="muted" style="text-align:center;padding:25px 0">Loading market data…</div></div></div></section><section id="goose" class="hidden"><div class="card"><div class="muted">GOLDEN GOOSE</div><div class="sectiontitle">Goose research</div><div class="sectioncopy">Quantitative grading opportunities only. Goose Score is shown before you open the full thesis.</div><input id="ggq" class="input" placeholder="Search Goose-ready cards"><div class="filters"><select id="ggsport" class="input"><option value="">All sports</option><option value="basketball">Basketball</option><option value="baseball">Baseball</option><option value="football">Football</option></select><input id="ggyear" class="input" placeholder="Year / season"><input id="ggset" class="input" placeholder="Set contains…"><select id="ggband" class="input"><option value="">All Goose Scores</option><option value="70">70+ Exceptional</option><option value="60">60+ High conviction</option><option value="50">50+ Watch</option></select></div><div id="ggr"></div></div></section><section id="watchlist" class="hidden"><div class="card"><div class="muted">GOLDEN GOOSE</div><div class="sectiontitle">Watchlist</div><div class="sectioncopy">Your favorited Goose opportunities. Scores remain quantitative and update with the model inputs.</div><div id="watchr"></div></div></section></div></div><nav id="nav" class="nav hidden"><button data-v="portfolio" class="active"><span class="navico">⌂</span>Portfolio</button><button data-v="add"><span class="navico">＋</span>Add</button><button data-v="goose"><span class="navico">◉</span>Goose</button><button data-v="watchlist"><span class="navico">★</span>Watchlist</button></nav><div id="sheetbg" class="sheetbg hidden"><div id="sheet" class="sheet"></div></div><script>
 const B='https://tjqeuiqyjdhpjgzhfwev.supabase.co',
 K='sb_publishable_USHur1aYCLjKc6lB-zIcrw_i8ihTYgc',
@@ -383,6 +389,79 @@ function tradeTrophy(i){let x=trophyBase(i);$('sheet').innerHTML=`<button class=
 async function saveTrade(i){let x=trophyBase(i);await api('/rest/v1/rpc/record_collection_trade_out',{method:'POST',body:JSON.stringify({p_holding_id:x.h.id,p_quantity:+$('tqty').value,p_trade_value_per_unit:+$('tvalue').value,p_fees:+$('tfees').value||0,p_occurred_at:new Date().toISOString(),p_notes:$('tnotes').value||null})});closeSheet();await load()}
 async function removeTrophy(i){let x=trophyBase(i);if(!confirm('Remove this holding as a correction?'))return;await api('/rest/v1/rpc/remove_collection_holding_correction',{method:'POST',body:JSON.stringify({p_holding_id:x.h.id,p_notes:'Removed as correction'})});closeSheet();await load()}
 
+
+const EBAY_OAUTH_URL=B+'/functions/v1/ebay-oauth';
+
+function setEbayUi(connection){
+  const status=$('ebaystatus'),detail=$('ebaydetail'),btn=$('ebayconnect');
+  if(!status||!detail||!btn)return;
+  if(connection&&connection.status==='connected'){
+    status.textContent='Connected ✓';
+    status.className='good';
+    const who=connection.ebay_username||connection.ebay_user_id||'eBay account';
+    const market=connection.marketplace_id?' · '+connection.marketplace_id:'';
+    detail.textContent=who+market+' · Read-only connection active';
+    btn.textContent='Reconnect eBay';
+    btn.disabled=false;
+  }else{
+    status.textContent='Not connected';
+    status.className='';
+    detail.textContent='Connect your eBay account securely through eBay OAuth.';
+    btn.textContent='Connect eBay';
+    btn.disabled=false;
+  }
+}
+
+async function loadEbayStatus(){
+  if(!T())return;
+  const status=$('ebaystatus'),detail=$('ebaydetail'),btn=$('ebayconnect');
+  if(status)status.textContent='Checking connection…';
+  try{
+    const r=await fetchWithTimeout(EBAY_OAUTH_URL+'?action=status',{headers:{Authorization:'Bearer '+T()}},10000);
+    const j=await r.json();
+    if(!r.ok)throw Error(j.error||'Could not check eBay connection');
+    setEbayUi(j.connection||null);
+  }catch(e){
+    if(status)status.textContent='Connection status unavailable';
+    if(detail)detail.textContent=e?.message||'Could not check eBay connection.';
+    if(btn){btn.disabled=false;btn.textContent='Connect eBay'}
+  }
+}
+
+async function connectEbay(){
+  const btn=$('ebayconnect'),status=$('ebaystatus'),detail=$('ebaydetail');
+  if(!T()){alert('Sign in to Card Analyst first.');return;}
+  if(btn){btn.disabled=true;btn.textContent='Opening eBay…'}
+  if(status)status.textContent='Starting secure connection…';
+  try{
+    const r=await fetchWithTimeout(EBAY_OAUTH_URL+'?action=start',{headers:{Authorization:'Bearer '+T()}},10000);
+    const j=await r.json();
+    if(!r.ok)throw Error(j.error||'Could not start eBay connection');
+    if(!j.authorization_url)throw Error('eBay authorization URL was not returned.');
+    location.href=j.authorization_url;
+  }catch(e){
+    if(status)status.textContent='Could not connect';
+    if(detail)detail.textContent=e?.message||'Could not start eBay connection.';
+    if(btn){btn.disabled=false;btn.textContent='Connect eBay'}
+  }
+}
+
+function handleEbayReturn(){
+  const params=new URLSearchParams(location.search);
+  const result=params.get('ebay');
+  if(!result)return;
+  if(result==='connected'){
+    setTimeout(()=>loadEbayStatus(),250);
+  }else if(result==='declined'){
+    const status=$('ebaystatus'),detail=$('ebaydetail');
+    if(status)status.textContent='Connection not authorized';
+    if(detail)detail.textContent='eBay authorization was declined. Nothing was connected.';
+  }
+  params.delete('ebay');
+  const qs=params.toString();
+  history.replaceState({},'',location.pathname+(qs?'?'+qs:'')+location.hash);
+}
+
 function uid(){try{let p=JSON.parse(atob((T().split('.')[1]||'').replace(/-/g,'+').replace(/_/g,'/')));return p.sub||''}catch{return ''}}
 function boolFilter(id){let v=$(id).value;return v===''?null:v==='true'}
 async function runArchiveSearch(){let q=$('addq').value.trim();try{let rows=await api('/rest/v1/rpc/search_card_archive_v2',{method:'POST',body:JSON.stringify({p_query:q||null,p_sport:$('addsport').value||null,p_year:$('addyear').value.trim()||null,p_set_name:$('addset').value.trim()||null,p_parallel:$('addparallel').value.trim()||null,p_serial_to:$('addserial').value?+$('addserial').value:null,p_rookie:boolFilter('addrookie'),p_autograph:boolFilter('addauto'),p_limit:75})});S.addResults=rows||[];drawAddResults()}catch(e){$('addr').innerHTML='<div class="error">'+e.message+'</div>'}}
@@ -415,12 +494,17 @@ function rerunGoose(){clearTimeout(ggtimer);ggtimer=setTimeout(drawGoose,100)}
 ['ggq','ggyear','ggset'].forEach(id=>$(id).oninput=rerunGoose);
 ['ggsport','ggband'].forEach(id=>$(id).onchange=rerunGoose);
 $('manualadd').onclick=manualAddSheet;
+if($('ebayconnect'))$('ebayconnect').onclick=connectEbay;
 $('trophyleft').onclick=()=>trophyStep(-1);
 $('trophyright').onclick=()=>trophyStep(1);
 $('holdings').addEventListener('scroll',()=>requestAnimationFrame(updateTrophyArrows),{passive:true});
 document.querySelectorAll('[data-range]').forEach(b=>b.onclick=()=>{S.range=b.dataset.range;drawPortfolioChart()});
 drawAddResults();
-if(T())load();else show(false);
+if(T()){
+  load();
+  handleEbayReturn();
+  loadEbayStatus();
+}else show(false);
 </script>
 <script src="/dashboard.js?v=CA1326"></script>
 <script src="/flips.js?v=FLIP2"></script>
