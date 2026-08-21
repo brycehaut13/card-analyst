@@ -1359,6 +1359,301 @@
 
   /* END VAULT CHUNK A */
 /* START VAULT CHUNK B */
+/* ==========================================================
+     VAULT-OWNED PROFILE EDITOR
+     ========================================================== */
+
+  function openVaultProfileEditor(){
+
+    const p =
+      STATE.profile || {};
+
+
+    $('sheet').innerHTML = `
+      <button
+        class="backbtn"
+        onclick="closeSheet()"
+      >
+        ← Back
+      </button>
+
+      <div class="muted">
+        PUBLIC PROFILE
+      </div>
+
+      <h2>Edit profile</h2>
+
+      <div class="card">
+
+        <input
+          id="vaultEditName"
+          class="input"
+          value="${esc(p.display_name || '')}"
+          placeholder="Display name"
+        >
+
+        <input
+          id="vaultEditBio"
+          class="input"
+          value="${esc(p.bio || '')}"
+          placeholder="Collector bio"
+        >
+
+        <input
+          id="vaultEditSports"
+          class="input"
+          value="${esc(arr(p.favorite_sports).join(', '))}"
+          placeholder="Favorite sports"
+        >
+
+        <input
+          id="vaultEditTeams"
+          class="input"
+          value="${esc(arr(p.favorite_teams).join(', '))}"
+          placeholder="Favorite teams"
+        >
+
+        <input
+          id="vaultEditPlayers"
+          class="input"
+          value="${esc(arr(p.favorite_players).join(', '))}"
+          placeholder="Favorite players"
+        >
+
+        <button
+          id="vaultSaveProfile"
+          class="btn primary"
+        >
+          Save profile
+        </button>
+
+      </div>
+    `;
+
+
+    openSheet();
+
+
+    document
+      .getElementById(
+        'vaultSaveProfile'
+      )
+      .onclick =
+        async () => {
+
+          try{
+
+            await api(
+              '/rest/v1/rpc/update_public_profile_v1',
+              {
+                method:'POST',
+
+                body:JSON.stringify({
+
+                  p_display_name:
+                    $('vaultEditName')
+                      .value
+                      .trim() ||
+                    null,
+
+                  p_bio:
+                    $('vaultEditBio')
+                      .value
+                      .trim() ||
+                    null,
+
+                  p_favorite_sports:
+                    $('vaultEditSports')
+                      .value
+                      .split(',')
+                      .map(x => x.trim())
+                      .filter(Boolean),
+
+                  p_favorite_teams:
+                    $('vaultEditTeams')
+                      .value
+                      .split(',')
+                      .map(x => x.trim())
+                      .filter(Boolean),
+
+                  p_favorite_players:
+                    $('vaultEditPlayers')
+                      .value
+                      .split(',')
+                      .map(x => x.trim())
+                      .filter(Boolean)
+
+                })
+              }
+            );
+
+
+            closeSheet();
+
+
+            await openSocialProfile(
+              uid()
+            );
+
+          }catch(e){
+
+            alert(
+              e?.message ||
+              'Could not save profile.'
+            );
+
+          }
+
+        };
+
+  }
+
+
+  /* ==========================================================
+     VAULT-OWNED SIGNATURE CARD CHOOSER
+     ========================================================== */
+
+  function openVaultSignatureChooser(){
+
+    const choices =
+      (S.h || [])
+        .filter(
+          h =>
+            Number(
+              h.quantity || 0
+            ) > 0 &&
+            h.cards?.id &&
+            h.cards?.image_url
+        );
+
+
+    $('sheet').innerHTML = `
+      <button
+        class="backbtn"
+        onclick="closeSheet()"
+      >
+        ← Back
+      </button>
+
+      <div class="muted">
+        SIGNATURE CARD
+      </div>
+
+      <h2>
+        Choose your profile card
+      </h2>
+
+      <div
+        class="vaultWall"
+        style="margin-top:14px"
+      >
+
+        ${
+          choices.length
+            ? choices
+                .map(
+                  h => `
+                    <button
+                      class="vaultWallCard"
+                      data-vault-avatar="${esc(h.cards.id)}"
+                    >
+
+                      <div class="vaultWallFrame">
+
+                        <img
+                          src="${esc(h.cards.image_url)}"
+                          alt="Card"
+                        >
+
+                      </div>
+
+                      <div class="vaultWallName">
+                        ${esc(h.cards.player_name || 'Card')}
+                      </div>
+
+                      <div class="vaultWallMeta">
+                        ${
+                          esc(
+                            [
+                              h.cards.year,
+                              h.cards.set_name,
+                              h.cards.parallel
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')
+                          )
+                        }
+                      </div>
+
+                    </button>
+                  `
+                )
+                .join('')
+            : `
+              <div
+                class="muted"
+                style="grid-column:1/-1"
+              >
+                No active owned cards with approved images are available.
+              </div>
+            `
+        }
+
+      </div>
+    `;
+
+
+    openSheet();
+
+
+    document
+      .querySelectorAll(
+        '[data-vault-avatar]'
+      )
+      .forEach(
+        btn => {
+
+          btn.onclick =
+            async () => {
+
+              try{
+
+                await api(
+                  '/rest/v1/rpc/set_profile_avatar_card_v1',
+                  {
+                    method:'POST',
+
+                    body:JSON.stringify({
+                      p_card_id:
+                        btn.dataset
+                          .vaultAvatar
+                    })
+                  }
+                );
+
+
+                closeSheet();
+
+
+                await openSocialProfile(
+                  uid()
+                );
+
+              }catch(e){
+
+                alert(
+                  e?.message ||
+                  'Could not set signature card.'
+                );
+
+              }
+
+            };
+
+        }
+      );
+
+  }
 
   /* ==========================================================
      PROFILE CONTENT
@@ -1852,16 +2147,7 @@
           'click',
           () => {
 
-            if(
-              typeof caOpenProfileEditor ===
-              'function'
-            ){
-              caOpenProfileEditor();
-            }else{
-              alert(
-                'Profile editor is unavailable in this build.'
-              );
-            }
+             openVaultProfileEditor();
 
           }
         );
@@ -1875,16 +2161,7 @@
           'click',
           () => {
 
-            if(
-              typeof caOpenSignatureChooser ===
-              'function'
-            ){
-              caOpenSignatureChooser();
-            }else{
-              alert(
-                'Signature card chooser is unavailable in this build.'
-              );
-            }
+            openVaultSignatureChooser();
 
           }
         );
