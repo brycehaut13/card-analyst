@@ -1600,8 +1600,9 @@
           ),
 
         api(
-          '/rest/v1/ebay_misidentified_opportunities_v2?select=*&order=estimated_profit_if_confirmed.desc&limit=150'
+          '/rest/v1/ebay_misidentified_review_app_v1?select=*&order=estimated_profit_if_confirmed.desc&limit=150'
         )
+
           .catch(
             () => []
           )
