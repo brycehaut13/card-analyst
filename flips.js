@@ -1571,8 +1571,9 @@
       await Promise.all([
 
         api(
-          '/rest/v1/golden_goose_flips_app_feed_v1?select=*&order=flip_score.desc&limit=250'
+          '/rest/v1/golden_goose_flips_app_feed_v1?select=*&order=profit_velocity_score.desc,flip_score.desc&limit=250'
         )
+
           .catch(
             () => []
           ),
