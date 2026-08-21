@@ -1398,22 +1398,14 @@
 
       <div class="castatus">
 
-        <span>
-          Screen refresh:
-          4 min
-          ·
-          Push worker:
-          1 min
-        </span>
+  <span></span>
 
-        <span>
-          Updated
-          ${esc(when)}
-          ·
-          ${BUILD}
-        </span>
+  <span>
+    Updated ${esc(when)}
+  </span>
 
-      </div>
+</div>
+
 
       <div class="casubtabs">
 
