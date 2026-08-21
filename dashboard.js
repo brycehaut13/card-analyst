@@ -3070,6 +3070,582 @@
 
       };
 
+/* ==========================================================
+     SECURE PASSCODE UI
+     ========================================================== */
+
+  const caSecureStyle =
+    document.createElement('style');
+
+  caSecureStyle.textContent = `
+    .caSecureBg{
+      position:fixed;
+      inset:0;
+      z-index:999;
+      background:rgba(5,8,9,.97);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:
+        calc(24px + env(safe-area-inset-top))
+        22px
+        calc(24px + env(safe-area-inset-bottom));
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .18s ease;
+    }
+
+    .caSecureBg.open{
+      opacity:1;
+      pointer-events:auto;
+    }
+
+    .caSecureCard{
+      width:min(390px,100%);
+      text-align:center;
+      transform:translateY(8px) scale(.985);
+      transition:transform .18s ease;
+    }
+
+    .caSecureBg.open .caSecureCard{
+      transform:translateY(0) scale(1);
+    }
+
+    .caSecureIcon{
+      width:58px;
+      height:58px;
+      margin:0 auto 20px;
+      border-radius:18px;
+      border:1px solid #314038;
+      background:#131a17;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:25px;
+    }
+
+    .caSecureEyebrow{
+      color:#74807a;
+      font-size:9px;
+      font-weight:950;
+      letter-spacing:1.15px;
+      text-transform:uppercase;
+    }
+
+    .caSecureTitle{
+      margin-top:7px;
+      font-size:29px;
+      font-weight:950;
+      letter-spacing:-.8px;
+    }
+
+    .caSecureCopy{
+      margin:8px auto 22px;
+      max-width:300px;
+      color:#87928d;
+      font-size:11px;
+      line-height:1.5;
+    }
+
+    .caCodeRow{
+      display:grid;
+      grid-template-columns:repeat(6,1fr);
+      gap:8px;
+      margin:0 auto;
+    }
+
+    .caCodeBox{
+      height:58px;
+      border-radius:13px;
+      border:1px solid #2c363a;
+      background:#0e1315;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#f5faf7;
+      font-size:24px;
+      font-weight:950;
+      transition:
+        border-color .12s ease,
+        background .12s ease,
+        transform .12s ease;
+    }
+
+    .caCodeBox.active{
+      border-color:#86dba4;
+      background:#131b17;
+    }
+
+    .caCodeBox.filled{
+      border-color:#35433c;
+    }
+
+    .caSecureInput{
+      position:absolute;
+      opacity:0;
+      pointer-events:none;
+      width:1px;
+      height:1px;
+    }
+
+    .caSecureError{
+      min-height:20px;
+      margin-top:13px;
+      color:#ff9ca5;
+      font-size:10px;
+      font-weight:800;
+    }
+
+    .caSecureActions{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:8px;
+      margin-top:8px;
+    }
+
+    .caSecureVerify{
+      border:0;
+      border-radius:13px;
+      padding:14px;
+      background:#edf8f0;
+      color:#07120a;
+      font-weight:950;
+      font-size:12px;
+    }
+
+    .caSecureVerify:disabled{
+      opacity:.4;
+    }
+
+    .caSecureCancel{
+      border:0;
+      background:none;
+      color:#77827d;
+      padding:10px;
+      font-size:10px;
+      font-weight:850;
+    }
+
+    .caSecureDots{
+      margin-top:17px;
+      color:#56615c;
+      font-size:8px;
+      letter-spacing:.5px;
+      text-transform:uppercase;
+    }
+
+    @keyframes caSecureShake{
+      0%,100%{transform:translateX(0)}
+      20%{transform:translateX(-7px)}
+      40%{transform:translateX(7px)}
+      60%{transform:translateX(-5px)}
+      80%{transform:translateX(5px)}
+    }
+
+    .caSecureShake{
+      animation:caSecureShake .32s ease;
+    }
+  `;
+
+  document.head.appendChild(
+    caSecureStyle
+  );
+
+
+  function caPasscodeScreen({
+    title = 'Enter Passcode',
+    copy = 'Enter your six-digit private access code.',
+    confirmLabel = 'Verify',
+    allowCancel = true
+  } = {}){
+
+    return new Promise(resolve => {
+
+      const bg =
+        document.createElement('div');
+
+      bg.className =
+        'caSecureBg';
+
+      bg.innerHTML = `
+        <div class="caSecureCard">
+
+          <div class="caSecureIcon">
+            ◉
+          </div>
+
+          <div class="caSecureEyebrow">
+            Card Analyst
+          </div>
+
+          <div class="caSecureTitle">
+            ${caEsc(title)}
+          </div>
+
+          <div class="caSecureCopy">
+            ${caEsc(copy)}
+          </div>
+
+          <input
+            class="caSecureInput"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            pattern="[0-9]*"
+            aria-label="Six digit passcode"
+          >
+
+          <div class="caCodeRow">
+            ${Array.from({length:6},(_,i)=>`
+              <div
+                class="caCodeBox"
+                data-code-box="${i}"
+              ></div>
+            `).join('')}
+          </div>
+
+          <div class="caSecureError"></div>
+
+          <div class="caSecureActions">
+
+            <button
+              class="caSecureVerify"
+              disabled
+            >
+              ${caEsc(confirmLabel)}
+            </button>
+
+            ${
+              allowCancel
+                ? `
+                  <button
+                    class="caSecureCancel"
+                  >
+                    Cancel
+                  </button>
+                `
+                : ''
+            }
+
+          </div>
+
+          <div class="caSecureDots">
+            Private access · encrypted verification
+          </div>
+
+        </div>
+      `;
+
+      document.body.appendChild(
+        bg
+      );
+
+      const card =
+        bg.querySelector(
+          '.caSecureCard'
+        );
+
+      const input =
+        bg.querySelector(
+          '.caSecureInput'
+        );
+
+      const verify =
+        bg.querySelector(
+          '.caSecureVerify'
+        );
+
+      const cancel =
+        bg.querySelector(
+          '.caSecureCancel'
+        );
+
+      const error =
+        bg.querySelector(
+          '.caSecureError'
+        );
+
+      const boxes =
+        [...bg.querySelectorAll(
+          '.caCodeBox'
+        )];
+
+      let finished =
+        false;
+
+      function cleanup(value){
+
+        if(finished){
+          return;
+        }
+
+        finished = true;
+
+        bg.classList.remove(
+          'open'
+        );
+
+        setTimeout(
+          () => bg.remove(),
+          180
+        );
+
+        resolve(value);
+      }
+
+
+      function renderCode(){
+
+        const value =
+          input.value
+            .replace(/\D/g,'')
+            .slice(0,6);
+
+        input.value =
+          value;
+
+        boxes.forEach(
+          (box,index) => {
+
+            const filled =
+              index < value.length;
+
+            box.textContent =
+              filled
+                ? '•'
+                : '';
+
+            box.classList.toggle(
+              'filled',
+              filled
+            );
+
+            box.classList.toggle(
+              'active',
+              index ===
+                Math.min(
+                  value.length,
+                  5
+                ) &&
+              value.length < 6
+            );
+
+          }
+        );
+
+        verify.disabled =
+          value.length !== 6;
+
+        error.textContent =
+          '';
+
+        if(value.length === 6){
+
+          setTimeout(
+            () => verify.focus(),
+            60
+          );
+
+        }
+
+      }
+
+
+      function shake(
+        message = 'Incorrect passcode'
+      ){
+
+        error.textContent =
+          message;
+
+        card.classList.remove(
+          'caSecureShake'
+        );
+
+        void card.offsetWidth;
+
+        card.classList.add(
+          'caSecureShake'
+        );
+
+        input.value = '';
+
+        renderCode();
+
+        setTimeout(
+          () => input.focus(),
+          120
+        );
+
+      }
+
+
+      bg.caShake =
+        shake;
+
+
+      input.addEventListener(
+        'input',
+        renderCode
+      );
+
+
+      input.addEventListener(
+        'keydown',
+        e => {
+
+          if(
+            e.key === 'Enter' &&
+            input.value.length === 6
+          ){
+
+            verify.click();
+
+          }
+
+        }
+      );
+
+
+      bg.addEventListener(
+        'click',
+        e => {
+
+          if(
+            !e.target.closest(
+              '.caSecureVerify'
+            ) &&
+            !e.target.closest(
+              '.caSecureCancel'
+            )
+          ){
+
+            input.focus();
+
+          }
+
+        }
+      );
+
+
+      verify.onclick =
+        () => {
+
+          const code =
+            input.value;
+
+          if(code.length !== 6){
+            return;
+          }
+
+          cleanup({
+            code,
+            overlay:bg
+          });
+
+        };
+
+
+      if(cancel){
+
+        cancel.onclick =
+          () => cleanup(null);
+
+      }
+
+
+      requestAnimationFrame(
+        () => {
+
+          bg.classList.add(
+            'open'
+          );
+
+          setTimeout(
+            () => input.focus(),
+            120
+          );
+
+        }
+      );
+
+      renderCode();
+
+    });
+
+  }
+
+
+  async function caSecureVerifyPasscode(
+    feature
+  ){
+
+    const result =
+      await caPasscodeScreen({
+
+        title:'Secure Access',
+
+        copy:
+          feature === 'flips'
+            ? 'Enter your six-digit passcode to unlock Flips.'
+            : 'Enter your six-digit passcode to unlock private research.',
+
+        confirmLabel:'Unlock'
+
+      });
+
+
+    if(!result){
+      return false;
+    }
+
+
+    try{
+
+      const verified =
+        await api(
+          '/rest/v1/rpc/verify_feature_passcode_v1',
+          {
+            method:'POST',
+
+            body:JSON.stringify({
+              p_passcode:
+                result.code,
+
+              p_feature:
+                feature
+            })
+          }
+        );
+
+
+      if(
+        !verified?.ok
+      ){
+
+        alert(
+          'Incorrect passcode.'
+        );
+
+        return false;
+      }
+
+
+      return true;
+
+
+    }catch(e){
+
+      alert(
+        e?.message ||
+        'Could not verify passcode.'
+      );
+
+      return false;
+
+    }
+
+  }
 
   /* ==========================================================
      PASSCODE
@@ -3078,9 +3654,11 @@
   async function caCreatePasscode(){
 
     const first =
-      prompt(
-        'Create your private Card Analyst passcode. Minimum 4 characters.'
-      );
+      await caPasscodeScreen({
+        title:'Create Passcode',
+        copy:'Choose a six-digit code for your private Card Analyst features.',
+        confirmLabel:'Continue'
+      });
 
 
     if(!first){
@@ -3089,13 +3667,21 @@
 
 
     const second =
-      prompt(
-        'Enter the passcode again to confirm.'
-      );
+      await caPasscodeScreen({
+        title:'Confirm Passcode',
+        copy:'Enter the same six-digit code one more time.',
+        confirmLabel:'Save Passcode'
+      });
+
+
+    if(!second){
+      return false;
+    }
 
 
     if(
-      first !== second
+      first.code !==
+      second.code
     ){
 
       alert(
@@ -3103,6 +3689,7 @@
       );
 
       return false;
+
     }
 
 
@@ -3114,7 +3701,8 @@
           method:'POST',
 
           body:JSON.stringify({
-            p_passcode:first
+            p_passcode:
+              first.code
           })
         }
       );
@@ -3136,12 +3724,8 @@
       caRebuildBottomNav();
 
 
-      alert(
-        'Private passcode saved.'
-      );
-
-
       return true;
+
 
     }catch(e){
 
@@ -3191,72 +3775,28 @@
     }
 
 
-    const pass =
-      prompt(
-        feature === 'flips'
-          ? 'Enter your private passcode to open Flips.'
-          : 'Enter your private passcode to open Goose & Watchlist.'
-      );
-
-
-    if(!pass){
-
-      return false;
-
-    }
-
-
-    try{
-
-      const result =
-        await api(
-          '/rest/v1/rpc/verify_feature_passcode_v1',
-          {
-            method:'POST',
-
-            body:JSON.stringify({
-              p_passcode:pass,
-              p_feature:feature
-            })
-          }
-        );
-
-
-      if(
-        !result?.ok
-      ){
-
-        alert(
-          'Incorrect passcode.'
-        );
-
-
-        return false;
-
-      }
-
-
-      caMarkUnlocked(
+    const ok =
+      await caSecureVerifyPasscode(
         feature
       );
 
 
-      caRebuildBottomNav();
-
-
-      return true;
-
-    }catch(e){
-
-      alert(
-        e?.message ||
-        'Could not verify passcode.'
-      );
-
+    if(!ok){
 
       return false;
 
     }
+
+
+    caMarkUnlocked(
+      feature
+    );
+
+
+    caRebuildBottomNav();
+
+
+    return true;
 
   }
 
