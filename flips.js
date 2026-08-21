@@ -2017,9 +2017,9 @@ function misidCard(x) {
     ] =
       await Promise.all([
 
-        api(
-          '/rest/v1/golden_goose_flips_feed?select=*&order=flip_score.desc&limit=250'
-        )
+         api(
+           '/rest/v1/golden_goose_flips_app_feed_v1?select=*&order=flip_score.desc&limit=250'
+         )
           .catch(
             e => {
               console.error(
