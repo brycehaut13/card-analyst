@@ -1139,12 +1139,17 @@
   }
 
 })();
-/* ===== Showroom visual polish ===== */
+/* ===== Showroom visual polish SAFE ===== */
 (() => {
   const style = document.createElement('style');
 
   style.textContent = `
-    /* Showroom heading */
+    #portfolio .coverage,
+    #portfolio #chartmeta,
+    #portfolio #trophycount{
+      display:none!important;
+    }
+
     #portfolio .trophytitle{
       margin-top:18px!important;
       margin-bottom:12px!important;
@@ -1156,29 +1161,22 @@
       margin:0!important;
     }
 
-    /* Card grid */
-    #portfolio .trophygrid{
-      gap:12px!important;
+    #portfolio .trophyrail{
+      gap:10px!important;
     }
 
-    /* Individual holding */
     #portfolio .trophycard{
-      border-radius:16px!important;
+      flex:0 0 76%!important;
+      max-width:250px!important;
       overflow:hidden!important;
-      padding:0!important;
-      background:#0f1418!important;
-      border:1px solid #263036!important;
     }
 
-    /* Full-bleed image area */
     #portfolio .cardframe{
       width:100%!important;
-      aspect-ratio:3 / 4!important;
-      border-radius:0!important;
+      height:320px!important;
+      border-radius:18px!important;
       overflow:hidden!important;
       background:#090c0e!important;
-      border:0!important;
-      margin:0!important;
     }
 
     #portfolio .cardframe img{
@@ -1187,161 +1185,53 @@
       object-fit:cover!important;
       object-position:center!important;
       display:block!important;
-      margin:0!important;
-      padding:0!important;
-    }
-
-    /* Card information */
-    #portfolio .trophyinfo{
-      padding:11px 12px 12px!important;
     }
 
     #portfolio .trophyname{
       font-size:14px!important;
       font-weight:900!important;
-      line-height:1.25!important;
-      margin:0 0 4px!important;
+      margin-top:9px!important;
     }
 
     #portfolio .trophymeta{
       font-size:9px!important;
-      line-height:1.35!important;
-      color:var(--m)!important;
-      margin-bottom:9px!important;
     }
 
     #portfolio .trophyprice{
       font-size:19px!important;
       font-weight:950!important;
-      line-height:1!important;
     }
 
-    #portfolio .trophysub{
-      font-size:9px!important;
-      margin-top:4px!important;
-      color:var(--m)!important;
-    }
-
-    /* Less visual noise */
-    #portfolio .coverage,
-    #portfolio #chartmeta,
-    #portfolio #trophycount{
-      display:none!important;
-    }
-
-    /* Chart gets less dominance */
     #portfolio .chartcard{
-      padding:11px!important;
       margin-top:10px!important;
-      border-radius:14px!important;
+      padding:11px!important;
     }
 
-    #portfolio .charthead{
-      margin-bottom:5px!important;
-    }
-
-    #portfolio .charthead b{
-      font-size:14px!important;
-    }
-
-    /* Cleaner empty-image state */
-    #portfolio .cardplaceholder{
-      width:100%!important;
-      height:100%!important;
-      min-height:180px!important;
-      display:flex!important;
-      align-items:center!important;
-      justify-content:center!important;
-      background:#0a0d0f!important;
-      color:#64706c!important;
-      font-size:9px!important;
-      font-weight:900!important;
-      letter-spacing:.5px!important;
-    }
-
-    /* Mobile: two cards across where space allows */
-    @media(max-width:640px){
-      #portfolio .trophygrid{
-        grid-template-columns:repeat(2,minmax(0,1fr))!important;
-        gap:8px!important;
-      }
-
-      #portfolio .trophyinfo{
-        padding:9px!important;
-      }
-
-      #portfolio .trophyname{
-        font-size:11px!important;
-      }
-
-      #portfolio .trophyprice{
-        font-size:16px!important;
-      }
-
-      #portfolio .trophymeta{
-        font-size:8px!important;
+    @media(max-width:390px){
+      #portfolio .cardframe{
+        height:285px!important;
       }
     }
   `;
 
   document.head.appendChild(style);
 
-  function showroomPolish() {
+  function polishShowroom() {
     const heading =
       document.querySelector(
         '#portfolio .trophytitle h2'
       );
 
-    if (heading) {
+    if (
+      heading &&
+      heading.textContent !== 'Showroom'
+    ) {
       heading.textContent = 'Showroom';
     }
-
-    document
-      .querySelectorAll(
-        '#portfolio .cardframe img'
-      )
-      .forEach(img => {
-        img.loading = 'lazy';
-
-        img.onerror = () => {
-          const placeholder =
-            document.createElement('div');
-
-          placeholder.className =
-            'cardplaceholder';
-
-          placeholder.textContent =
-            'IMAGE PENDING';
-
-          img.replaceWith(
-            placeholder
-          );
-        };
-      });
   }
 
-  requestAnimationFrame(
-    showroomPolish
-  );
+  polishShowroom();
 
-  const observer =
-    new MutationObserver(
-      showroomPolish
-    );
-
-  const portfolio =
-    document.getElementById(
-      'portfolio'
-    );
-
-  if (portfolio) {
-    observer.observe(
-      portfolio,
-      {
-        childList:true,
-        subtree:true
-      }
-    );
-  }
+  setTimeout(polishShowroom, 500);
+  setTimeout(polishShowroom, 1500);
 })();
-
