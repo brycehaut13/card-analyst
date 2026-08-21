@@ -1235,3 +1235,312 @@
   setTimeout(polishShowroom, 500);
   setTimeout(polishShowroom, 1500);
 })();
+/* ===== Shared image review controls V2 ===== */
+(() => {
+  const style = document.createElement('style');
+
+  style.textContent = `
+    .imgreview{
+      margin:12px 0;
+      padding:12px;
+      border:1px solid #293238;
+      border-radius:16px;
+      background:#0d1113;
+    }
+
+    .imgreview img{
+      width:100%;
+      max-height:420px;
+      object-fit:cover;
+      object-position:center;
+      border-radius:12px;
+      display:block;
+      background:#090c0e;
+    }
+
+    .imgreviewtitle{
+      margin-top:10px;
+      font-size:13px;
+      font-weight:900;
+    }
+
+    .imgreviewcopy{
+      margin-top:4px;
+      color:var(--m);
+      font-size:10px;
+      line-height:1.4;
+    }
+
+    .imgreviewactions{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+      margin-top:10px;
+    }
+
+    .imgapprove,
+    .imgreject{
+      border-radius:11px;
+      padding:11px;
+      font-weight:900;
+      border:1px solid #303a3f;
+    }
+
+    .imgapprove{
+      background:#e9f7ee;
+      color:#07120a;
+    }
+
+    .imgreject{
+      background:#171b1d;
+      color:#fff;
+    }
+
+    .imgreviewstatus{
+      margin-top:8px;
+      font-size:9px;
+      color:var(--m);
+    }
+  `;
+
+  document.head.appendChild(style);
+
+  async function loadImageReview(cardId) {
+    try {
+      const rows = await api(
+        '/rest/v1/rpc/portfolio_image_candidate_v2',
+        {
+          method:'POST',
+          body:JSON.stringify({
+            p_card_id:cardId
+          })
+        }
+      );
+
+      const r =
+        Array.isArray(rows)
+          ? rows[0]
+          : null;
+
+      if (
+        !r ||
+        !r.candidate_image_url
+      ) {
+        return;
+      }
+
+      const old =
+        document.querySelector(
+          '.imgreview'
+        );
+
+      if (old) {
+        old.remove();
+      }
+
+      const box =
+        document.createElement('div');
+
+      box.className =
+        'imgreview';
+
+      box.innerHTML = `
+        <img
+          src="${r.candidate_image_url}"
+          alt="Card image candidate"
+        >
+
+        <div class="imgreviewtitle">
+          Is this the correct card image?
+        </div>
+
+        <div class="imgreviewcopy">
+          ${
+            [
+              r.year,
+              r.player_name,
+              r.set_name,
+              r.card_number
+                ? '#' + r.card_number
+                : null,
+              r.parallel
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          }
+        </div>
+
+        <div class="imgreviewstatus">
+          ${
+            r.already_approved
+              ? 'Current image already approved · you can still replace it'
+              : 'Candidate image · approve it to make it shared for all users'
+          }
+        </div>
+
+        <div class="imgreviewactions">
+
+          <button
+            class="imgapprove"
+          >
+            Use this image
+          </button>
+
+          <button
+            class="imgreject"
+          >
+            Wrong image
+          </button>
+
+        </div>
+      `;
+
+      const approve =
+        box.querySelector(
+          '.imgapprove'
+        );
+
+      const reject =
+        box.querySelector(
+          '.imgreject'
+        );
+
+      approve.onclick =
+        async () => {
+          approve.disabled = true;
+
+          approve.textContent =
+            'Saving…';
+
+          try {
+            await api(
+              '/rest/v1/rpc/approve_catalog_card_image_v2',
+              {
+                method:'POST',
+                body:JSON.stringify({
+                  p_catalog_id:
+                    r.catalog_id,
+
+                  p_image_url:
+                    r.candidate_image_url,
+
+                  p_source_item_id:
+                    r.source_item_id
+                })
+              }
+            );
+
+            approve.textContent =
+              'Saved ✓';
+
+            setTimeout(
+              async () => {
+                closeSheet();
+                await load();
+                view('portfolio');
+              },
+              500
+            );
+
+          } catch(e) {
+            alert(
+              e?.message ||
+              'Could not approve image.'
+            );
+
+            approve.disabled =
+              false;
+
+            approve.textContent =
+              'Use this image';
+          }
+        };
+
+      reject.onclick =
+        async () => {
+          reject.disabled = true;
+
+          reject.textContent =
+            'Finding another…';
+
+          try {
+            await api(
+              '/rest/v1/rpc/reject_catalog_card_image_v1',
+              {
+                method:'POST',
+                body:JSON.stringify({
+                  p_catalog_id:
+                    r.catalog_id,
+
+                  p_image_url:
+                    r.candidate_image_url,
+
+                  p_source_item_id:
+                    r.source_item_id
+                })
+              }
+            );
+
+            box.remove();
+
+            await loadImageReview(
+              cardId
+            );
+
+          } catch(e) {
+            alert(
+              e?.message ||
+              'Could not reject image.'
+            );
+
+            reject.disabled =
+              false;
+
+            reject.textContent =
+              'Wrong image';
+          }
+        };
+
+      const target =
+        document.querySelector(
+          '#sheet .investhero'
+        );
+
+      if (target) {
+        target.after(box);
+      }
+
+    } catch(e) {
+      console.warn(
+        'Image review unavailable',
+        e
+      );
+    }
+  }
+
+  if (
+    typeof openTrophyInvestment ===
+    'function'
+  ) {
+    const oldOpenTrophy =
+      openTrophyInvestment;
+
+    openTrophyInvestment =
+      async function(i) {
+
+        const result =
+          await oldOpenTrophy(i);
+
+        const card =
+          S.h?.[i]?.cards;
+
+        if (card?.id) {
+          loadImageReview(
+            card.id
+          );
+        }
+
+        return result;
+      };
+  }
+})();
