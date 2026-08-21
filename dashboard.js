@@ -1544,3 +1544,29 @@
       };
   }
 })();
+/* ===== Showroom image framing fix ===== */
+(() => {
+  const style = document.createElement('style');
+
+  style.textContent = `
+    #portfolio .cardframe{
+      background:#0b0f12!important;
+      padding:10px!important;
+      display:flex!important;
+      align-items:center!important;
+      justify-content:center!important;
+      overflow:hidden!important;
+      border-radius:18px!important;
+    }
+
+    #portfolio .cardframe img{
+      width:100%!important;
+      height:100%!important;
+      object-fit:contain!important;
+      object-position:center!important;
+      display:block!important;
+    }
+  `;
+
+  document.head.appendChild(style);
+})();
