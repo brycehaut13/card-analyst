@@ -327,7 +327,7 @@ $('signup').onclick=async()=>{
 };
 
 function q(id){return S.q.find(x=>x.card_id===id)}
-async function load(){show(true);try{[S.h,S.q,S.snaps]=await Promise.all([api('/rest/v1/holdings?select=id,quantity,cost_basis,cards(id,year,set_name,player_name,card_number,parallel,serial_numbered_to,image_url)&order=created_at.desc'),api('/rest/v1/current_price_quotes?select=card_id,market_value_per_unit,last_updated_at,provider,confidence_score'),api('/rest/v1/portfolio_snapshots?select=snapshot_date,total_market_value,total_cost_basis,unrealized_pnl,card_count,priced_card_count,unpriced_card_count,valuation_coverage_pct,valuation_method&order=snapshot_date.asc&limit=365')]);render()}catch(e){console.warn(e)}}
+async function load(){show(true);try{[S.h,S.q,S.snaps]=await Promise.all([api('/rest/v1/holdings?select=id,quantity,cost_basis,cards(id,year,set_name,player_name,card_number,parallel,serial_numbered_to,image_url)&order=created_at.desc'),api('/rest/v1/portfolio_best_current_quotes?select=card_id,market_value_per_unit,last_updated_at,provider,confidence_score&rn=eq.1'),api('/rest/v1/portfolio_snapshots?select=snapshot_date,total_market_value,total_cost_basis,unrealized_pnl,card_count,priced_card_count,unpriced_card_count,valuation_coverage_pct,valuation_method&order=snapshot_date.asc&limit=365')]);render()}catch(e){console.warn(e)}}
 function rangedSnaps(){
   let a=S.snaps||[];
   if(!a.length||S.range==='ALL')return a;
