@@ -1,0 +1,10 @@
+{
+  "name": "Card Analyst",
+  "short_name": "Card Analyst",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#080a0b",
+  "theme_color": "#080a0b",
+  "orientation": "portrait-primary"
+}
