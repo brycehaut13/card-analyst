@@ -395,28 +395,41 @@
     }
 
     .vaultFeatured{
-      display:flex;
-      gap:10px;
-      overflow-x:auto;
-      padding:2px 2px 17px;
-      margin-bottom:5px;
-      scrollbar-width:none;
-      scroll-snap-type:x mandatory;
-    }
+  display:flex;
+  gap:10px;
 
-    .vaultFeatured::-webkit-scrollbar{
-      display:none;
-    }
+  overflow-x:auto;
+  overflow-y:hidden;
 
-    .vaultFeaturedCard{
-      flex:0 0 220px;
-      scroll-snap-align:start;
-      border:0;
-      background:none;
-      color:#fff;
-      text-align:left;
-      padding:0;
-    }
+  padding:2px 2px 17px;
+  margin-bottom:5px;
+
+  scrollbar-width:none;
+
+  scroll-snap-type:x proximity;
+  scroll-behavior:smooth;
+
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-x;
+  overscroll-behavior-x:contain;
+}
+
+.vaultFeatured::-webkit-scrollbar{
+  display:none;
+}
+
+.vaultFeaturedCard{
+  flex:0 0 220px;
+  scroll-snap-align:start;
+  scroll-snap-stop:normal;
+
+  border:0;
+  background:none;
+  color:#fff;
+  text-align:left;
+  padding:0;
+}
+
 
     .vaultFeaturedFrame{
       height:300px;
