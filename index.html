@@ -636,5 +636,73 @@ if(T()){
 <script src="/dashboard.js?v=CA1400PROFILE"></script>
 <script src="/vault.js?v=CA1503VAULT"></script>
 <script src="/flips.js?v=FLIP3REVIEW"></script>
+<script>
+/* CA — Clickable Showroom Recent Sales */
+(() => {
+  const originalOpenTrophyInvestment = window.openTrophyInvestment;
+
+  window.openTrophyInvestment = async function(i) {
+    await originalOpenTrophyInvestment(i);
+
+    const h = S.h && S.h[i];
+    const c = h && h.cards;
+    if (!c || !c.id) return;
+
+    const salesBox = document.getElementById('trophysales');
+    if (!salesBox) return;
+
+    try {
+      const sales = await api(
+        '/rest/v1/trophy_room_recent_sales' +
+        '?select=grader,grade,total_price,sold_at,source_name,source_url' +
+        '&card_id=eq.' + encodeURIComponent(c.id) +
+        '&order=sold_at.desc&limit=10'
+      );
+
+      salesBox.innerHTML = sales.length
+        ? sales.map(r => `
+            <div class="saleitem">
+              <div>
+                <span class="salegrade">
+                  ${r.grader && r.grade ? r.grader + ' ' + r.grade : 'RAW'}
+                </span>
+
+                <div class="saledate">
+                  ${new Date(r.sold_at).toLocaleDateString()}
+                </div>
+              </div>
+
+              <div>
+                <div class="saleprice">
+                  ${M(r.total_price)}
+                </div>
+
+                <div class="salesource">
+                  ${
+                    r.source_url
+                      ? `<a
+                           href="${r.source_url}"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           style="
+                             color:#63e693;
+                             text-decoration:none;
+                             font-weight:850;
+                           "
+                         >View sale ↗</a>`
+                      : (r.source_name || 'Verified').replace(/_/g, ' ')
+                  }
+                </div>
+              </div>
+            </div>
+          `).join('')
+        : '<div class="historyempty">No verified exact-match sales yet.</div>';
+
+    } catch (e) {
+      console.warn('Recent sales link load failed', e);
+    }
+  };
+})();
+</script>
 </body>
 </html>
